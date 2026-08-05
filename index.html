@@ -801,6 +801,42 @@
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
         dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('active'); if(e.dataTransfer.files.length) startProcessing(e.dataTransfer.files[0]); });
 
+        window.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('loading-screen').classList.remove('hidden');
+            loadCsvFromServer();
+        });
+
+        function loadCsvFromServer() {
+            fetch('./data.csv')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error ${response.status}`);
+                    }
+                    return response.text();
+                })
+                .then(csvText => {
+                    parseCsvText(csvText);
+                })
+                .catch(error => {
+                    console.error('Auto load data.csv failed:', error);
+                    document.getElementById('loading-screen').classList.add('hidden');
+                    document.getElementById('upload-section').classList.remove('hidden');
+                });
+        }
+
+        function parseCsvText(csvText) {
+            Papa.parse(csvText, {
+                header: true, skipEmptyLines: true,
+                complete: res => onCsvDataLoaded(res.data),
+                error: err => {
+                    console.error('CSV parse error:', err);
+                    document.getElementById('loading-screen').classList.add('hidden');
+                    document.getElementById('upload-section').classList.remove('hidden');
+                }
+            });
+        }
+
         function startProcessing(file) {
             document.getElementById('upload-section').classList.add('hidden');
             document.getElementById('loading-screen').classList.remove('hidden');
@@ -810,14 +846,16 @@
         function processFile(file) {
             Papa.parse(file, {
                 header: true, skipEmptyLines: true,
-                complete: res => {
-                    rawData = res.data;
-                    analyzeData();
-                    document.getElementById('loading-screen').classList.add('hidden');
-                    document.getElementById('dashboard-ui').classList.remove('hidden');
-                    document.getElementById('fuzzy-trigger').classList.remove('hidden');
-                }
+                complete: res => onCsvDataLoaded(res.data)
             });
+        }
+
+        function onCsvDataLoaded(data) {
+            rawData = data;
+            analyzeData();
+            document.getElementById('loading-screen').classList.add('hidden');
+            document.getElementById('dashboard-ui').classList.remove('hidden');
+            document.getElementById('fuzzy-trigger').classList.remove('hidden');
         }
 
         function toggleFuzzySidebar() {
