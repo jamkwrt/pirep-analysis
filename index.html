@@ -1,0 +1,2997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aviation Maint. Intelligence (Ultimate V11.28)</title>
+    <!-- Libraries (Standardized CDNs) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Added ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Base Styles */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
+        /* UI Components */
+        .drag-area { border: 2px dashed #3b82f6; transition: all 0.3s; }
+        .drag-area.active { border-color: #1e40af; background-color: #eff6ff; }
+        .tab-btn.active { border-bottom: 3px solid #004B87; color: #004B87; font-weight: 600; }
+        .card { background: white; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* Loader */
+        .loader-spin { animation: spin 2s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Chart Interactivity */
+        .js-plotly-plot .plotly .cursor-pointer { cursor: pointer; }
+        /* Table Highlight & Search */
+        tr.selected-row td {
+            background-color: #fef9c3 !important;
+            border-top: 1px solid #fde047;
+            border-bottom: 1px solid #fde047;
+        }
+        .highlight-text { background-color: #fde047; font-weight: bold; color: black; }
+        /* Drilldown Link */
+        .drill-link { color: #DC2626; text-decoration: none; cursor: pointer; font-weight: bold; }
+        .drill-link:hover { color: #991B1B; }
+        /* Multi-Select Dropdown */
+        .ms-dropdown { display: none; position: absolute; background-color: white; min-width: 100%; max-height: 250px; overflow-y: auto; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 50; border: 1px solid #e5e7eb; border-radius: 0.375rem; margin-top: 4px; }
+        .ms-dropdown.show { display: block; }
+        .ms-option { padding: 8px 12px; display: flex; align-items: center; cursor: pointer; }
+        .ms-option:hover { background-color: #f3f4f6; }
+        .ms-checkbox { margin-right: 8px; }
+        .ms-search { padding: 8px; position: sticky; top: 0; background: white; border-bottom: 1px solid #e5e7eb; z-index: 10; }
+        /* Trend Buttons */
+        .trend-btn { font-size: 0.75rem; padding: 0.25rem 0.75rem; border: 1px solid #e5e7eb; border-radius: 0.25rem; transition: all 0.2s; }
+        .trend-btn:hover { background-color: #f3f4f6; }
+        .trend-btn.active { background-color: #3b82f6; color: white; border-color: #3b82f6; }
+        /* Fullscreen Card Styles */
+        .card-fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            max-width: none !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important; 
+        }
+        .card-fullscreen > * {flex-shrink: 0; }
+        .chart-fullscreen {
+            flex-grow: 1 !important; 
+            flex-shrink: 1 !important;
+            min-height: 0 !important; 
+            height: auto !important;
+            max-height: none !important; 
+        }
+    </style>
+</head>
+<body class="text-gray-800" onclick="closeAllDropdowns(event)">
+
+    <!-- Custom Action Tooltip -->
+    <div id="custom-action-tooltip" style="z-index: 10000;" class="fixed hidden transition-opacity duration-75 bg-slate-900 text-slate-200 rounded-lg shadow-2xl p-4 w-[450px] border border-slate-700">
+        <button onclick="hideActionTooltip()" class="absolute top-2 right-2 text-gray-400 hover:text-white bg-slate-800 hover:bg-rose-500 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-times"></i></button>
+        <div class="mb-3 pr-4">
+            <span class="font-bold text-teal-400 text-[10px] uppercase tracking-wider block mb-1"><i class="fa-solid fa-bell mr-1"></i>Notification</span>
+            <div id="tt-noti" class="text-xs leading-relaxed font-semibold bg-slate-800 p-2.5 rounded border border-slate-700 shadow-inner"></div>
+        </div>
+        <div class="mb-3 pr-4">
+            <span class="font-bold text-blue-400 text-[10px] uppercase tracking-wider block mb-1"><i class="fa-solid fa-wrench mr-1"></i>Activity Text</span>
+            <div id="tt-act-text" class="text-xs leading-relaxed whitespace-pre-wrap break-words bg-slate-800 p-2.5 rounded border border-slate-700 shadow-inner min-h-[40px] max-h-[200px] overflow-y-auto custom-scroll"></div>
+        </div>
+        <div>
+            <span class="font-bold text-amber-400 text-[10px] uppercase tracking-wider block mb-1"><i class="fa-solid fa-tag mr-1"></i>Activity Code Text</span>
+            <div id="tt-act-code" class="text-xs leading-relaxed font-semibold bg-slate-800 p-2.5 rounded border border-slate-700 shadow-inner"></div>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-jet-fighter-up text-2xl text-blue-400"></i>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide">Maint. Intelligence</h1>
+                    <span class="text-xs text-blue-300">Ultimate V11.28 (Fix)</span>
+                </div>
+            </div>
+            <div class="hidden md:block text-xs bg-blue-800 px-3 py-1 rounded-full">Pilot Complaint Analyzer</div>
+        </div>
+    </nav>
+
+    <!-- Fuzzy Matching Floating Button -->
+    <div id="fuzzy-trigger" class="fixed top-1/2 left-0 z-40 transform -translate-y-1/2 hidden transition-all hover:pl-2">
+        <button onclick="toggleFuzzySidebar()" class="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-r-xl shadow-lg border border-purple-800 border-l-0 flex flex-col items-center gap-1 group">
+            <i class="fa-solid fa-wand-magic-sparkles text-xl group-hover:scale-110 transition-transform"></i>
+            <span class="text-[10px] font-bold uppercase" style="writing-mode: vertical-rl; text-orientation: mixed;">Data Prep</span>
+        </button>
+    </div>
+
+    <!-- Fullscreen Data Prep Modal -->
+    <div id="fuzzy-modal" class="fixed inset-0 w-full h-full bg-gray-100 z-[100] hidden flex-col animate-fade-in">
+        <div class="bg-slate-900 text-white p-4 px-6 flex justify-between items-center shadow-md shrink-0 border-b-4 border-purple-600">
+            <div>
+                <h2 class="text-xl font-bold"><i class="fa-solid fa-wand-magic-sparkles text-purple-400 mr-3"></i>Data Preparation Studio</h2>
+                <p class="text-sm text-slate-300 mt-1">Manage system vocabulary and view extracted text data.</p>
+            </div>
+            <button onclick="toggleFuzzySidebar()" class="text-slate-300 hover:text-white text-3xl leading-none" title="Close Window">&times;</button>
+        </div>
+
+        <div class="flex-1 overflow-hidden flex flex-col p-6 gap-6">
+            <div class="flex-1 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden relative">
+                <div class="flex border-b border-gray-200 bg-gray-50 shrink-0">
+                    <button id="modal-tab-btn-vocab" class="px-6 py-4 font-bold text-sm text-purple-700 border-b-2 border-purple-600 focus:outline-none transition-colors" onclick="switchModalTab('vocab')">
+                        <i class="fa-solid fa-book-bookmark mr-2"></i>Master Vocabulary
+                    </button>
+                    <button id="modal-tab-btn-audit" class="px-6 py-4 font-bold text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors" onclick="switchModalTab('audit')">
+                        <i class="fa-solid fa-magnifying-glass-chart mr-2"></i>Mining Audit
+                    </button>
+                </div>
+
+                <!-- Master Vocabulary Tab -->
+                <div id="modal-tab-vocab" class="flex-1 overflow-auto custom-scroll p-6 bg-gray-50">
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold text-gray-800">System Dictionary</h3>
+                        <p class="text-sm text-gray-500">List of authorized keywords used for text mining and Sankey flow generation.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100%-60px)] min-h-[400px]">
+                        <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+                            <div class="bg-rose-50 border-b border-rose-100 p-3 shrink-0 flex justify-between items-center">
+                                <span class="font-bold text-rose-800"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Symptom</span>
+                                <span class="bg-rose-100 text-rose-800 text-xs font-bold px-2 py-1 rounded-full" id="count-symp">0</span>
+                            </div>
+                            <div class="flex-1 overflow-y-auto custom-scroll p-2 text-sm text-gray-700" id="list-symp"></div>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+                            <div class="bg-indigo-50 border-b border-indigo-100 p-3 shrink-0 flex justify-between items-center">
+                                <span class="font-bold text-indigo-800"><i class="fa-solid fa-microchip mr-2"></i>Component</span>
+                                <span class="bg-indigo-100 text-indigo-800 text-xs font-bold px-2 py-1 rounded-full" id="count-comp">0</span>
+                            </div>
+                            <div class="flex-1 overflow-y-auto custom-scroll p-2 text-sm text-gray-700" id="list-comp"></div>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+                            <div class="bg-emerald-50 border-b border-emerald-100 p-3 shrink-0 flex justify-between items-center">
+                                <span class="font-bold text-emerald-800"><i class="fa-solid fa-wrench mr-2"></i>Action</span>
+                                <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full" id="count-act">0</span>
+                            </div>
+                            <div class="flex-1 overflow-y-auto custom-scroll p-2 text-sm text-gray-700" id="list-act"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mining Audit Tab -->
+                <div id="modal-tab-audit" class="hidden flex-1 overflow-hidden p-6 bg-gray-50 flex-col lg:flex-row gap-6">
+                    <div class="w-full lg:w-1/5 xl:w-64 shrink-0 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden h-full">
+                        <div class="p-3 bg-white border-b border-gray-200 shrink-0">
+                            <h3 class="text-sm font-bold text-gray-800"><i class="fa-solid fa-list-ol mr-2 text-purple-600"></i>Word Frequency</h3>
+                        </div>
+                        <div class="flex-1 overflow-auto custom-scroll p-0 relative">
+                            <table class="w-full text-xs text-left">
+                                <thead class="uppercase sticky top-0 shadow-sm z-10 text-gray-600 bg-gray-100">
+                                    <tr>
+                                        <th class="px-4 py-3 border-b border-gray-200">Dictionary Word</th>
+                                        <th class="px-4 py-3 border-b border-gray-200 text-center">Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-summary-tbody" class="divide-y divide-gray-100 text-gray-700 bg-white"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 min-w-0 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden h-full" id="audit-trail-card">
+                        <div class="p-3 bg-white border-b border-gray-200 flex justify-between items-center shrink-0">
+                            <h3 class="text-sm font-bold text-gray-800"><i class="fa-solid fa-list-check mr-2 text-purple-600"></i>Text Extraction Audit Trail</h3>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="toggleFullscreen('audit-trail-card', 'audit-trail-container')" class="text-xs bg-white border border-gray-300 px-2 py-1.5 rounded shadow-sm hover:bg-gray-50 flex items-center text-gray-600 transition" title="Toggle Fullscreen">
+                                    <i class="fa-solid fa-expand"></i>
+                                </button>
+                                <button onclick="exportAuditData()" class="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded shadow-sm flex items-center transition"><i class="fa-solid fa-file-excel mr-1"></i>Export Excel</button>
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-auto custom-scroll p-0 relative" id="audit-trail-container">
+                            <table class="w-full text-xs text-left">
+                                <thead class="uppercase sticky top-0 shadow-sm z-10 text-gray-600 bg-gray-100">
+                                    <tr>
+                                        <th class="px-4 py-3 border-b border-gray-200 whitespace-nowrap text-center w-12">#</th>
+                                        <th class="px-4 py-3 border-b border-gray-200 whitespace-nowrap">ACREG</th>
+                                        <th class="px-4 py-3 border-b border-gray-200 whitespace-nowrap">Main ATA</th>
+                                        <th class="px-4 py-3 border-b border-gray-200 whitespace-nowrap">Date</th>
+                                        <th class="px-4 py-3 border-b border-gray-200 whitespace-nowrap">Notification</th>
+                                        <th class="px-4 py-3 border-b border-gray-200 w-full min-w-[250px]">Complaint Text</th>
+                                        <th class="px-4 py-3 border-b-2 border-rose-300 text-rose-800 bg-rose-50 w-32 whitespace-nowrap"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Symptom</th>
+                                        <th class="px-4 py-3 border-b-2 border-indigo-300 text-indigo-800 bg-indigo-50 w-32 whitespace-nowrap"><i class="fa-solid fa-screwdriver-wrench mr-1"></i> Component</th>
+                                        <th class="px-4 py-3 border-b-2 border-teal-300 text-teal-800 bg-teal-50 w-40 whitespace-nowrap"><i class="fa-solid fa-clipboard-check mr-1"></i> L2 Summary</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-tbody" class="divide-y divide-gray-100 text-gray-700 bg-white"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-6">
+        
+        <!-- Upload Section -->
+        <div id="upload-section" class="mb-8">
+            <div class="bg-white p-10 rounded-xl shadow-lg text-center max-w-2xl mx-auto border border-gray-100">
+                <div id="drop-zone" class="drag-area p-12 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 group">
+                    <i class="fa-solid fa-file-csv text-6xl text-slate-300 group-hover:text-blue-500 transition mb-4"></i>
+                    <h2 class="text-xl font-bold text-gray-700">Drop CSV File Here</h2>
+                    <p class="text-sm text-gray-500 mt-2">Pilot Complaint_All Fleet_Period.csv</p>
+                    <input type="file" id="file-input" accept=".csv" class="hidden">
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="hidden flex flex-col items-center justify-center py-20 animate-fade-in">
+            <div class="relative">
+                <div class="w-24 h-24 border-4 border-blue-200 border-t-blue-600 rounded-full loader-spin"></div>
+                <i class="fa-solid fa-plane text-blue-600 text-xl absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></i>
+            </div>
+            <h2 class="mt-6 text-xl font-bold text-gray-700">Processing Logbook Data...</h2>
+            <p class="text-sm text-gray-500 mt-2">Applying Business Logic & Creating Analytics...</p>
+        </div>
+
+        <!-- Dashboard UI -->
+        <div id="dashboard-ui" class="hidden animate-fade-in">
+            
+            <!-- Global Filter Bar -->
+            <div class="bg-white p-4 rounded-lg shadow-md mb-6 border border-gray-200">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider"><i class="fa-solid fa-filter mr-2"></i>Global Filters</h3>
+                    <button onclick="resetFilters()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">Reset All</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-9 gap-3">
+                    <div class="relative group"><label class="text-xs text-gray-500 block mb-1">Aircraft Type</label><button id="btn-type" onclick="toggleDropdown('ms-type', event)" class="w-full text-sm border rounded px-2 py-1 bg-gray-50 text-left flex justify-between items-center focus:ring-2 focus:ring-blue-500"><span class="truncate">All</span><i class="fa-solid fa-chevron-down text-xs text-gray-400"></i></button><div id="ms-type" class="ms-dropdown custom-scroll"></div></div>
+                    <div class="relative group"><label class="text-xs text-gray-500 block mb-1">Aircraft Model</label><button id="btn-model" onclick="toggleDropdown('ms-model', event)" class="w-full text-sm border rounded px-2 py-1 bg-gray-50 text-left flex justify-between items-center focus:ring-2 focus:ring-blue-500"><span class="truncate">All</span><i class="fa-solid fa-chevron-down text-xs text-gray-400"></i></button><div id="ms-model" class="ms-dropdown custom-scroll"></div></div>
+                    <div class="relative group"><label class="text-xs text-gray-500 block mb-1">Registration</label><button id="btn-reg" onclick="toggleDropdown('ms-reg', event)" class="w-full text-sm border rounded px-2 py-1 bg-gray-50 text-left flex justify-between items-center focus:ring-2 focus:ring-blue-500"><span class="truncate">All</span><i class="fa-solid fa-chevron-down text-xs text-gray-400"></i></button><div id="ms-reg" class="ms-dropdown custom-scroll"></div></div>
+                    <div class="relative group"><label class="text-xs text-gray-500 block mb-1">ATA Chapter</label><button id="btn-ata" onclick="toggleDropdown('ms-ata', event)" class="w-full text-sm border rounded px-2 py-1 bg-gray-50 text-left flex justify-between items-center focus:ring-2 focus:ring-blue-500"><span class="truncate">All</span><i class="fa-solid fa-chevron-down text-xs text-gray-400"></i></button><div id="ms-ata" class="ms-dropdown custom-scroll"></div></div>
+                    <div class="relative group"><label class="text-xs text-gray-500 block mb-1">Quarter</label><button id="btn-quarter" onclick="toggleDropdown('ms-quarter', event)" class="w-full text-sm border rounded px-2 py-1 bg-gray-50 text-left flex justify-between items-center focus:ring-2 focus:ring-blue-500"><span class="truncate">All</span><i class="fa-solid fa-chevron-down text-xs text-gray-400"></i></button><div id="ms-quarter" class="ms-dropdown custom-scroll"></div></div>
+                    <div class="relative group"><label class="text-xs text-gray-500 block mb-1">Category</label><button id="btn-cat" onclick="toggleDropdown('ms-cat', event)" class="w-full text-sm border rounded px-2 py-1 bg-gray-50 text-left flex justify-between items-center focus:ring-2 focus:ring-blue-500"><span class="truncate">All</span><i class="fa-solid fa-chevron-down text-xs text-gray-400"></i></button><div id="ms-cat" class="ms-dropdown custom-scroll"></div></div>
+                    <div class="relative group"><label class="text-xs text-gray-500 block mb-1">Maint. Status</label><button id="btn-status" onclick="toggleDropdown('ms-status', event)" class="w-full text-sm border rounded px-2 py-1 bg-gray-50 text-left flex justify-between items-center focus:ring-2 focus:ring-blue-500"><span class="truncate">All</span><i class="fa-solid fa-chevron-down text-xs text-gray-400"></i></button><div id="ms-status" class="ms-dropdown custom-scroll"></div></div>
+                    <div><label class="text-xs text-gray-500 block mb-1">Start Date</label><input type="date" id="filter-date-start" class="w-full text-sm border rounded px-2 py-1 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none" onchange="applyFilters()"></div>
+                    <div><label class="text-xs text-gray-500 block mb-1">End Date</label><input type="date" id="filter-date-end" class="w-full text-sm border rounded px-2 py-1 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none" onchange="applyFilters()"></div>
+                </div>
+            </div>
+
+            <!-- Global Stats -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                <div class="card p-4 border-t-4 border-blue-600"><div class="text-xs text-gray-500 uppercase font-bold">Total Reports</div><div class="text-2xl font-bold text-gray-800" id="kpi-total">0</div></div>
+                <div class="card p-4 border-t-4 border-red-500"><div class="text-xs text-gray-500 uppercase font-bold">Tech Issues</div><div class="text-2xl font-bold text-red-600" id="kpi-tech">0</div></div>
+                <div class="card p-4 border-t-4 border-yellow-600"><div class="text-xs text-gray-500 uppercase font-bold">Top ATA</div><div class="text-lg font-bold text-yellow-600 truncate" id="kpi-top-ata">-</div></div>
+                <div class="card p-4 border-t-4 border-purple-600"><div class="text-xs text-gray-500 uppercase font-bold">Top Aircraft</div><div class="text-2xl font-bold text-purple-600" id="kpi-sickest-ac">-</div></div>
+                <div class="card p-4 border-t-4 border-green-600"><div class="text-xs text-gray-500 uppercase font-bold">Avg Reports/Day</div><div class="text-2xl font-bold text-green-600" id="kpi-avg-day">0</div></div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="bg-white rounded-lg shadow-sm p-2 mb-6 overflow-x-auto">
+                <div class="flex space-x-2 min-w-max">
+                    <button id="nav-btn-overview" class="tab-btn active px-4 py-2 rounded hover:bg-gray-50 transition text-sm" onclick="switchTab('overview')"><i class="fa-solid fa-chart-pie mr-2"></i>Overview</button>
+                    <button id="nav-btn-fleet" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition text-sm" onclick="switchTab('fleet')"><i class="fa-solid fa-plane mr-2"></i>Fleet Health</button>
+                    <button id="nav-btn-rootcause" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition text-sm" onclick="switchTab('rootcause')"><i class="fa-solid fa-wrench mr-2"></i>Root Cause</button>
+                    <button id="nav-btn-phrase" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition text-sm" onclick="switchTab('phrase')"><i class="fa-solid fa-quote-right mr-2"></i>Phrase Mining</button>
+                    <button id="nav-btn-chronic" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition text-sm text-red-600 font-bold" onclick="switchTab('chronic')"><i class="fa-solid fa-clock-rotate-left mr-2"></i>Chronic</button>
+                    <button id="nav-btn-statement" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition text-sm" onclick="switchTab('statement')"><i class="fa-solid fa-file-signature mr-2"></i>Problem Statement</button>
+                    <button id="nav-btn-summary" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition text-sm" onclick="switchTab('summary')"><i class="fa-solid fa-list-alt mr-2 text-indigo-600"></i>Complaint Summary</button>
+                    <button id="nav-btn-rawdata" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition text-sm" onclick="switchTab('rawdata')"><i class="fa-solid fa-table mr-2"></i>Raw Data</button>
+                </div>
+            </div>
+
+            <!-- Tabs Content -->
+            <div id="tab-overview" class="tab-content animate-fade-in">
+                <!-- Grid Layout: Trend (Left 75%) + Top 5 Cards (Right 25%) -->
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+                    <div class="lg:col-span-3 card p-6" id="trend-card">
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="flex items-center space-x-3">
+                                <h3 class="font-bold text-gray-700">Defect Trend Analysis (By Model)</h3>
+                                <div class="flex space-x-1">
+                                    <button onclick="setTrendFreq('Day')" id="freq-day" class="trend-btn active">Day</button>
+                                    <button onclick="setTrendFreq('Week')" id="freq-week" class="trend-btn">Week</button>
+                                    <button onclick="setTrendFreq('Month')" id="freq-month" class="trend-btn">Month</button>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded"><i class="fa-solid fa-computer-mouse mr-1"></i>Drilldown</span>
+                                <button onclick="toggleFullscreen('trend-card', 'trend-chart')" class="text-gray-400 hover:text-blue-600 transition" title="Toggle Fullscreen"><i class="fa-solid fa-expand"></i></button>
+                                <button onclick="exportTrendData()" class="text-gray-400 hover:text-green-600 transition" title="Export to Excel"><i class="fa-solid fa-file-excel"></i></button>
+                            </div>
+                        </div>
+                        <div id="trend-chart" style="height:400px;"></div>
+                    </div>
+                    <div class="lg:col-span-1 flex flex-col gap-6">
+                        <div class="card p-4 flex-1">
+                            <h4 class="text-sm font-bold text-gray-700 border-b pb-2 mb-2"><i class="fa-solid fa-plane-up mr-2 text-purple-500"></i>Top 5 Aircraft</h4>
+                            <div id="top5-ac-list" class="overflow-y-auto max-h-[250px] custom-scroll pr-1"></div>
+                        </div>
+                        <div class="card p-4 flex-1">
+                            <h4 class="text-sm font-bold text-gray-700 border-b pb-2 mb-2"><i class="fa-solid fa-wrench mr-2 text-yellow-500"></i>Top 5 ATA</h4>
+                            <div id="top5-ata-list" class="overflow-y-auto max-h-[250px] custom-scroll pr-1"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-gray-700">Issue Category</h3>
+                            <button onclick="exportCatData()" class="text-gray-400 hover:text-green-600 transition" title="Export to Excel"><i class="fa-solid fa-file-excel"></i></button>
+                        </div>
+                        <div id="cat-chart" style="height:350px;"></div>
+                    </div>
+                    <div class="card p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-gray-700">Maintenance Status</h3>
+                            <button onclick="exportStatusData()" class="text-gray-400 hover:text-green-600 transition" title="Export to Excel"><i class="fa-solid fa-file-excel"></i></button>
+                        </div>
+                        <div id="status-chart" style="height:350px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-fleet" class="tab-content hidden animate-fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div class="card p-6" id="fleet-card">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-gray-700">Aircraft Reliability</h3>
+                            <div class="flex items-center space-x-2">
+                                <div class="flex space-x-1">
+                                    <button onclick="setFleetLimit(5)" class="text-xs px-2 py-1 border rounded hover:bg-gray-100">Top 5</button>
+                                    <button onclick="setFleetLimit(10)" class="text-xs px-2 py-1 border rounded hover:bg-gray-100 bg-gray-100 font-bold">Top 10</button>
+                                    <button onclick="setFleetLimit('ALL')" class="text-xs px-2 py-1 border rounded hover:bg-gray-100">All</button>
+                                </div>
+                                <button onclick="toggleFullscreen('fleet-card', 'fleet-chart')" class="text-gray-400 hover:text-blue-600 transition" title="Toggle Fullscreen"><i class="fa-solid fa-expand"></i></button>
+                                <button onclick="exportFleetData()" class="text-gray-400 hover:text-green-600 transition" title="Export to Excel"><i class="fa-solid fa-file-excel"></i></button>
+                            </div>
+                        </div>
+                        <div id="fleet-chart" style="height:500px;"></div>
+                    </div>
+                    <div class="card p-6">
+                         <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-700">Fleet Hierarchy Breakdown</h3></div>
+                        <div id="sunburst-chart" style="height:500px;"></div>
+                    </div>
+                </div>
+                <div class="card p-6" id="matrix-card">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-gray-700">Fleet Defect Heatmap (Aircraft vs ATA)</h3>
+                        <div class="flex space-x-2">
+                            <button onclick="toggleFullscreen('matrix-card', 'matrix-chart')" class="text-gray-400 hover:text-blue-600 transition" title="Toggle Fullscreen"><i class="fa-solid fa-expand"></i></button>
+                            <button onclick="exportMatrixData()" class="text-gray-400 hover:text-green-600 transition" title="Export to Excel"><i class="fa-solid fa-file-excel"></i></button>
+                        </div>
+                    </div>
+                    <div id="matrix-chart" style="height:600px;"></div>
+                </div>
+            </div>
+
+            <div id="tab-rootcause" class="tab-content hidden animate-fade-in">
+                <div class="card p-6 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-gray-700">ATA Pareto</h3>
+                        <button onclick="exportParetoData()" class="text-gray-400 hover:text-green-600 transition" title="Export to Excel"><i class="fa-solid fa-file-excel"></i></button>
+                    </div>
+                    <div id="pareto-chart" style="height:400px;"></div>
+                </div>
+                 <div class="card p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-gray-700">Top ATA Chapters (From Main ATA)</h3>
+                        <button onclick="exportRootCauseData()" class="text-gray-400 hover:text-green-600 transition" title="Export to Excel"><i class="fa-solid fa-file-excel"></i></button>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-4">Breakdown of technical issues by ATA Chapter (derived from Main ATA)</p>
+                    <div class="flex flex-col lg:flex-row gap-6 h-[500px]">
+                        <div class="w-full lg:w-3/4" id="fc-chart"></div>
+                        <div class="w-full lg:w-1/4 overflow-y-auto border-l pl-4 custom-scroll" id="fc-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-phrase" class="tab-content hidden animate-fade-in">
+                <div class="card p-6 mb-6">
+                    <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+                        <div class="flex items-center space-x-4">
+                            <h3 class="font-bold text-gray-700">Word Frequency Analysis (Dictionary Matched)</h3>
+                            <div class="hidden md:flex items-center space-x-2 text-[10px] font-bold text-gray-500">
+                                <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-[#E11D48] mr-1"></span>Symptom</span>
+                                <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-[#4F46E5] mr-1"></span>Component</span>
+                                <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-[#10B981] mr-1"></span>Action</span>
+                                <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-[#94A3B8] mr-1"></span>Others</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <select id="ngram-col" class="bg-gray-50 border rounded text-sm px-3 py-1 focus:outline-none" onchange="runNgramAnalysis(currentFilteredData)">
+                                <option value="Complaint Text">Pilot Complaint</option>
+                                <option value="Operation Text">Operation Detail</option>
+                            </select>
+                            <button onclick="exportNgramData()" class="text-gray-400 hover:text-green-600 transition" title="Export to Excel"><i class="fa-solid fa-file-excel"></i></button>
+                        </div>
+                    </div>
+                    <div id="ngram-chart" style="height:400px;"></div>
+                </div>
+                <div class="card p-6 mb-6">
+                     <div class="flex justify-between items-center mb-4">
+                         <h3 class="font-bold text-gray-700">🌊 Defect Resolution Flow (Symptom -> Component -> Action)</h3>
+                         <button onclick="exportResolutionFlow()" class="text-gray-400 hover:text-green-600 transition" title="Export Sankey Flow"><i class="fa-solid fa-file-excel"></i></button>
+                    </div>
+                    <div id="echart-sankey" style="height: 500px;"></div>
+                </div>
+            </div>
+
+            <div id="tab-chronic" class="tab-content hidden animate-fade-in">
+                <div class="card p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-red-700"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Chronic Alert (Repeats in Selection)</h3>
+                        <button onclick="exportChronicData()" class="text-gray-400 hover:text-green-600 transition" title="Export to Excel"><i class="fa-solid fa-file-excel"></i></button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                                <tr>
+                                    <th class="px-4 py-3">AC REG</th>
+                                    <th class="px-4 py-3">ATA System</th>
+                                    <th class="px-4 py-3">Occurrences</th>
+                                    <th class="px-4 py-3">Last Date</th>
+                                    <th class="px-4 py-3">Last Status</th>
+                                    <th class="px-4 py-3">Latest Complaint</th>
+                                </tr>
+                            </thead>
+                            <tbody id="chronic-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-statement" class="tab-content hidden animate-fade-in">
+                <div class="card p-8">
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-file-signature mr-2 text-blue-600"></i>Automated Problem Statement</h3>
+                            <p class="text-sm text-gray-500 mt-1">Generates technical reports based on repetitive defects found in current selection.</p>
+                        </div>
+                        <button onclick="copyStatement()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm border"><i class="fa-regular fa-copy mr-1"></i>Copy Text</button>
+                    </div>
+                    <div id="statement-content" class="bg-gray-50 p-6 rounded-lg border border-gray-200 font-mono text-sm text-gray-700 whitespace-pre-wrap leading-relaxed shadow-inner" style="min-height: 300px;"></div>
+                </div>
+            </div>
+
+            <!-- COMPLAINT SUMMARY -->
+            <div id="tab-summary" class="tab-content hidden animate-fade-in">
+                <div class="flex flex-col gap-6">
+                    <div class="card p-6" id="summary-original-card">
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-layer-group mr-2 text-blue-600"></i>Grouped Complaint Summary (Raw Text)</h3>
+                                <p class="text-sm text-gray-500 mt-1">Hierarchical view of technical complaints. <span class="font-bold text-blue-600">Click the complaint text to view repair activity.</span></p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="toggleFullscreen('summary-original-card', 'summary-original-content')" class="text-xs bg-white border border-gray-300 px-3 py-1.5 rounded shadow-sm hover:bg-gray-50 flex items-center text-gray-600 transition" title="Toggle Fullscreen">
+                                    <i class="fa-solid fa-expand"></i>
+                                </button>
+                                <button onclick="exportOriginalSummaryData()" class="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded shadow-sm flex items-center transition"><i class="fa-solid fa-file-excel mr-1"></i>Export Excel</button>
+                            </div>
+                        </div>
+                        <div id="summary-original-content" class="overflow-auto custom-scroll p-0 border border-gray-200 rounded-lg bg-gray-50" style="max-height: 450px;"></div>
+                    </div>
+
+                    <div class="card p-6 border-t-4 border-teal-500" id="summary-l2-card">
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-clipboard-check mr-2 text-teal-600"></i>Standardized Issue Summary (L2)</h3>
+                                <p class="text-sm text-gray-500 mt-1">Complaints categorized by Standard Issue (L2). <span class="font-bold text-blue-600">Click the blue issue names to view raw data records.</span></p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="toggleFullscreen('summary-l2-card', 'summary-l2-content')" class="text-xs bg-white border border-gray-300 px-3 py-1.5 rounded shadow-sm hover:bg-gray-50 flex items-center text-gray-600 transition" title="Toggle Fullscreen">
+                                    <i class="fa-solid fa-expand"></i>
+                                </button>
+                                <button onclick="exportL2SummaryData()" class="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded shadow-sm flex items-center transition"><i class="fa-solid fa-file-excel mr-1"></i>Export Excel</button>
+                            </div>
+                        </div>
+                        <div id="summary-l2-content" class="overflow-auto custom-scroll p-0 border border-gray-200 rounded-lg bg-gray-50" style="max-height: 450px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-rawdata" class="tab-content hidden animate-fade-in">
+                <div class="card p-6" id="raw-card">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 space-y-2 md:space-y-0">
+                        <div>
+                            <h3 class="font-bold text-gray-700">Source Data View</h3>
+                            <div id="raw-count" class="text-xs text-gray-500"></div>
+                        </div>
+                        <div class="flex space-x-2 items-center">
+                            <button onclick="toggleFullscreen('raw-card', 'raw-table-container')" class="text-sm bg-white border border-gray-300 px-3 py-1.5 rounded shadow-sm hover:bg-gray-50 flex items-center text-gray-600" title="Toggle Fullscreen">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                            <button onclick="exportRawData()" class="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded shadow-sm flex items-center">
+                                <i class="fa-solid fa-file-excel mr-2"></i>Excel
+                            </button>
+                            <div class="relative">
+                                <input type="text" id="table-search" placeholder="Search in table..." class="text-sm border border-gray-300 rounded pl-8 pr-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 w-64" onkeyup="searchTable()">
+                                <i class="fa-solid fa-search absolute left-2.5 top-2.5 text-gray-400 text-xs"></i>
+                            </div>
+                            <div class="relative">
+                                <button onclick="toggleColMenu()" class="text-sm bg-white border border-gray-300 px-3 py-1.5 rounded shadow-sm hover:bg-gray-50 flex items-center">
+                                    <i class="fa-solid fa-table-columns mr-2 text-blue-500"></i>Select Columns <i class="fa-solid fa-chevron-down ml-2 text-xs"></i>
+                                </button>
+                                <div id="col-menu" class="hidden absolute right-0 bg-white border border-gray-200 shadow-xl rounded-lg mt-2 p-3 z-50 max-h-80 overflow-y-auto w-64">
+                                    <div class="text-xs font-bold text-gray-500 mb-2 uppercase">Toggle Columns</div>
+                                    <div id="col-checkboxes" class="grid grid-cols-1 gap-2"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="raw-table-container" class="overflow-auto custom-scroll max-h-[600px] border rounded shadow-inner relative">
+                        <table class="w-full text-sm text-left text-gray-600" id="raw-data-table"></table>
+                    </div>
+                    <div class="mt-2 text-xs text-gray-400 italic text-right">* Tip: Click a row to highlight it.</div>
+                    
+                    <div id="pagination-controls" class="flex justify-between items-center mt-4 border-t pt-3">
+                         <div class="text-xs text-gray-500" id="page-info">Showing page 1</div>
+                         <div class="flex space-x-2">
+                             <button onclick="prevPage()" id="btn-prev" class="px-3 py-1 border rounded text-sm hover:bg-gray-100 disabled:opacity-50">Previous</button>
+                             <button onclick="nextPage()" id="btn-next" class="px-3 py-1 border rounded text-sm hover:bg-gray-100 disabled:opacity-50">Next</button>
+                         </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- XSS Protection Helper ---
+        function escapeHTML(str) {
+            if (typeof str !== 'string') return str;
+            return str.replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                "'": '&#39;',
+                '"': '&quot;'
+            }[tag] || tag));
+        }
+
+        // --- JS LOGIC FOR CUSTOM TOOLTIP ---
+        let tooltipActive = false;
+        let clickOriginX = 0;
+        let clickOriginY = 0;
+
+        function showActionTooltip(event, tdElement) {
+            event.stopPropagation();
+            const tooltip = document.getElementById('custom-action-tooltip');
+            const notiText = tdElement.getAttribute('data-noti');
+            const actText = tdElement.getAttribute('data-act');
+            const actCode = tdElement.getAttribute('data-code');
+            
+            document.getElementById('tt-noti').innerText = notiText || '-';
+            document.getElementById('tt-act-text').innerText = actText || 'No Activity Data';
+            document.getElementById('tt-act-code').innerText = actCode || '-';
+            
+            tooltip.classList.remove('hidden');
+            
+            const rect = tooltip.getBoundingClientRect();
+            let mouseX = event.clientX + 15;
+            let mouseY = event.clientY + 15;
+            
+            if (mouseX + rect.width > window.innerWidth) mouseX = window.innerWidth - rect.width - 10;
+            if (mouseY + rect.height > window.innerHeight) mouseY = event.clientY - rect.height - 15;
+            
+            tooltip.style.left = mouseX + 'px';
+            tooltip.style.top = mouseY + 'px';
+            tooltip.classList.remove('opacity-0');
+
+            clickOriginX = event.clientX;
+            clickOriginY = event.clientY;
+            tooltipActive = true;
+        }
+
+        function hideActionTooltip() {
+            const tooltip = document.getElementById('custom-action-tooltip');
+            tooltip.classList.add('opacity-0');
+            tooltip.classList.add('hidden');
+            tooltipActive = false;
+        }
+        
+        document.addEventListener('click', function(event) {
+            const tooltip = document.getElementById('custom-action-tooltip');
+            if (!tooltip.classList.contains('hidden') && !tooltip.contains(event.target)) {
+                hideActionTooltip();
+            }
+        });
+
+        document.addEventListener('mousemove', function(event) {
+            if (tooltipActive) {
+                const tooltip = document.getElementById('custom-action-tooltip');
+                if (tooltip.contains(event.target)) return;
+                const dist = Math.sqrt(Math.pow(event.clientX - clickOriginX, 2) + Math.pow(event.clientY - clickOriginY, 2));
+                if (dist > 30) hideActionTooltip();
+            }
+        });
+
+        document.addEventListener('scroll', function(event) {
+            if (tooltipActive) hideActionTooltip();
+        }, true);
+
+        // --- 1. CONFIG & DICTIONARIES ---
+        const wordCategories = {
+            "Component": ["STARTER","EEC","GEN","LT","TAXI","STEER","PINS","A-SKID","CARGO","HEATER","VCRU", "OVHT","ADR","IRS","IR","ILS","SYS","INLET","RAM","LAV-GALLEY","HPSOV","MAINTENANCE","MAINT","LDG LT","EXT","SHAFT PROT","MMR","IGN","CTRL","TURBINE","CASE","INTERPHONE","MONIT","ALTN","RSVR","HYD","JETT","PMP", "TK", "STBY","TEMP","INDICATION","ADR/IR/ISIS","ELAC","ELEC","PITCH","LOG BOOK","FIRE LOOP","RAT", "IDG","MONITORING","C/B","NBPT","DRIVE","TR","ACARS", "ACCU", "ADGB","ADS-B", "A-ICE", "AILERON", "AIR", "APU", "ATC", "ATC/XPDR", "AUTO CTL","AUTOLAND","BOOM MIC","BOOMSET","BLOWER", "BATTERY", "BEACON LT", "BLEED", "BLEED CAP", "BODY","BRAKE", "BRAKES PART","BRK CTL", "BRK FAN", "BRK", "BULB", "BUTTON", "CAB", "CABIN", "FAN", "CAMERA","CASE DRAIN FILTER", "CLG", "COCKPIT", "HANDSET", "HEADSET","COM HF", "COMPRESSOR", "COMPUTER","CPRSR", "CTL", "CTL SYS","CTR", "DATA", "DATALINK", "DET FIRE","DISPLAY", "DOME LT", "DOOR", "DOWNLOCK PIN", "DRAIN", "ECAM", "EDGE", "EFB", "EICAS", "ELEC GEN", "ELEVATOR", "ELEVATOR ACTUATOR","EMER", "ENG", "ENG EEC", "ENGINE", "EXTERNAL", "EXTRACT FAN", "F/CTL", "FAIRING", "FAN", "FASTENER", "FAUCET", "FILTER", "FLAP", "FLUID","FUEL", "FUEL FILTER", "FUEL INERTING SYS", "FUEL QTY INDICATION", "FUSE", "FUSELAGE","GA SOFT","GALLEY", "GAS","GEAR", "GEAR INDICATION SYS", "GENERATOR", "GLASS", "GLASS COVER", "GNSS", "GPS","HANGAR", "HARNESS", "HYDRAULIC", "ICE", "ICE DETECT","INACCURATE","IGNITOR", "INDICATION", "KEYBOARD COVER", "KNOB", "LAMP", "LAN CABLE", "LAVATORY", "LENS", "LEVER", "LIGHT", "LIQUID", "LIQUID COOLING", "LWR", "MASK", "MCU", "MFP","NAV", "NAV LT", "NITROGEN", "NLG", "NOSE", "NOSE LANDING GEAR","OIL", "OIL FILTER", "OIL LEVEL","OXYGEN", "PACK FCV", "PAD", "PANEL", "PB", "PIPE", "PRED W/S","PRIM", "PRINTER", "PROBE", "PRSOV", "PTT", "PUMP", "RAD ALT", "RADOME", "RAM FAN", "REFUEL", "RESERVOIR", "RUDDER", "RUDDER PEDAL", "SATCOM", "SATVOICE", "SCREW", "SEAL", "SEAT", "SENSOR", "SGL", "SHOULDER HARNESS", "SINK", "SKIN", "SLAT", "TIP BRK", "SLIDING TABLE", "SOLENOID", "SOURCE","STABILIZER","STROBE LT", "STRUCTURAL", "SUNSHADE", "SUNVISOR","SURV", "SW", "SWITCH", "TAB", "TAIL", "TAIL CONE", "TANK", "TAT", "TAXI LT","TIRE", "TOILET", "TRAFFIC","TRIM AIR","UPR","VARIABLE", "VALVE", "VANE", "VENT", "VENT SKIN VALVE", "VHF", "VLV", "WASTE TK", "WATER", "WEATHER RADAR SYS", "WHEEL", "WIFI", "WINDOW","WINDSHEAR PREDICTIVE", "WINDSHIELD", "WING", "WIPER", "WXR", "ANT", "XPDR","TCAS","VIDEO"],
+            "Symptom": ["RWY TURN OFF","INSTALLED","SAFETY","TEST","INERTING","OUTFLOW","NOT","OFF","MINOR","RESET","SHUTDOWN","SHUT","DOWN","RELEASE","EXCHR","QTY","QUANTITY","SHEDDING","NOT FUNCTION","ABNORMAL", "ACTUATOR", "AUTO", "AVIONIC", "AVNCS", "BAD", "BENT", "BIRD STRIKE", "BLINKING", "BLOCKED", "BRIGHT", "BROKEN", "BURNT","COOLING", "CAUTION", "CLOGGED", "CLOSE","CLSD", "COND", "CRACKED", "DAMAGE", "DEGRADED", "DIM", "DIRTY", "DISC", "DISCHARGE", "DISCONNECT", "DISCREPANCY","DIFFUSER", "FADED", "FAIL", "FAULT", "FLASHING", "FLICKER", "FLUCTUATE", "HIGH", "HEATG", "HIGH VIB", "HOT", "IDENTIFIER", "INCORRECT", "INOP", "INPUT", "INTEGRATED", "INTERFERENCE", "INTERMITTENT", "JAMMED","JAMMIN", "LEAK", "LOCKED", "LONGTERM","LONG TERM", "LOOSE", "LOST", "LOUD", "LOUD NOISE", "LOW", "MISSING", "MSG", "NEARLY EXPIRE", "NO LAND", "NOISE", "NORM", "NOT AVAIL", "NOT DROP", "NOT ILLUM", "OBSTRUCTED", "OIL CHIP", "OUT", "OVERHEAT", "PEEL OFF", "PEELED OFF", "POOR", "PRESS", "PRESS LO", "PRESSURE", "QUIET", "RECIRC", "REDUNDANCY", "REGUL", "SHORT TERM", "SHOW AMBER", "SINGLE", "SLOW", "SMELL", "SMOKE", "SOUND", "SPOOFING", "STRANGE SOUND", "STUCK", "TEMP OFF LIGHT ILLUM", "TOO COLD", "TORN OFF","CONTROL", "UNABLE TO ACCESS", "UNABLE TO ADJUST", "UNABLE TO ALIGN", "UNABLE TO CONTROL", "UNABLE TO FLUSH", "UNABLE TO LOCK", "UNABLE TO OPEN", "UNABLE TO PRINT", "UNABLE TO RECEIVE", "UNABLE TO SEND", "UNABLE TO TRANSMIT", "UNABLE TO TURN", "UNABLE TO TURN OFF", "UNABLE TO TURN ON", "UNABLE TO USE", "UNSERVICEABLE", "UNUSUAL", "VIBRATION", "WAS USED", "WEIRD", "WORN OUT", "WORSE", "WRONG","REJECTED"],   
+            "Action": ["ADJUSTED", "CORRECTED", "EXPECT", "PASS", "REVISED", "SEARCH", "SERVICING", "START", "SUSPECT", "SUSPECTED", "UPDATE", "USED", "VERIFICATION"],
+            "Event": ["BIRD", "BIRD STRIKE", "BIRDSTRIKE", "LIGHTNING", "LIGHTNING STRIKE", "STRIKE"],
+            "Operation": ["BULK", "COMP", "ETOPS", "FC", "FH", "LIVE CRAB", "LIVE FISH", "LOGBOOK", "SEAFOOD", "SPARE", "TECH LOG", "WET CARGO"],
+            "Location": ["AFT", "BOTTOM", "CAB", "CABIN", "CAPT", "CENTER", "CKPT", "COCKPIT", "CTR", "ENG1", "ENG2", "FO", "FRONT", "FWD", "INBD", "INBOARD", "L", "L/H", "LEFT", "LH", "LOWER", "LWR", "MAIN", "MID", "OUTBD", "OUTBOARD","PACK", "PACK BAY", "POS", "R", "R/H", "REAR", "RH", "RIGHT", "SIDE", "TAIL CONE", "TOP", "UPPER", "UPR", "ZONE"]
+        };
+        const l2MappingRules = [
+            { component: ["LOG BOOK | TECH LOG"], symptom: "", l2Summary: "LOG BOOK" },
+            // --- ATA 21 ---
+            { component: ["CAB", "AUTO", "CTL"], symptom: "PRESS", l2Summary: "DM: CAB PRESS AUTO CTL SYS" },{ component: ["AIR", "CPRSR"], symptom: "DISPLAY | MSG", location: "CABIN", l2Summary: 'EICAS MSG "CABIN AIR CPRSR" DISPLAYED' },{ component: ["AIR", "CPRSR","CABIN"], symptom: "DISPLAY | MSG", l2Summary: 'EICAS MSG "CABIN AIR CPRSR" DISPLAYED' },
+            { component: ["PACK FCV", "UPR"], symptom: "MSG", l2Summary: 'EICAS MSG "PACK FCV UPR" DISPLAYED' }, { component: ["PACK FCV", "LWR"], symptom: "MSG", l2Summary: 'EICAS MSG "PACK FCV LWR" DISPLAYED' },{ component: ["TRIM AIR", "PRSOV"], symptom: "DISPLAY", l2Summary: 'EICAS MSG "TRIM AIR PRSOV" DISPLAYED' },{ component: ["TRIM AIR", "PRSOV"], symptom: "MSG", l2Summary: 'EICAS MSG "TRIM AIR PRSOV" DISPLAYED' },
+            { component: ["TRIM","AIR"], symptom: "FAULT", l2Summary: "TRIM AIR SYSTEM FAULT" },{ component: "AIR", symptom: ["FAULT","HOT"], l2Summary: "COND HOT AIR FAULT" },{ component: ["AIR", "CLG"], symptom: "DISPLAY | RECIRC | INTEGRATED", l2Summary: 'EICAS MSG "INTEGRATED CLG RECIRC AIR" DISPLAYED' },
+            { component: [""], symptom: ["DISPLAY","COOLING","LEAK","INTEGRATED"], l2Summary: 'EICAS MSG "INTEGRATED COOLING LEAK" DISPLAYED' },{ component: ["AIR", "PACK", "REGUL"], symptom: "FAULT | DEGRADED | REDUNDANCY", l2Summary: "AIR PACK REGUL FAULT" }, { component: ["AIR", "PACK"], symptom: "DEGRADED", l2Summary: "AIR PACK REGUL FAULT" },{ component: ["AIR", "PACK"], symptom: "FAULT", l2Summary: "AIR PACK REGUL FAULT" },       
+            { component: ["VENT", "BLOWER"], symptom: "FAULT", l2Summary: "VENT BLOWER FAULT" }, { component: ["VENT", "AVNCS"], symptom: "", l2Summary: "VENT AVNCS FAULT" },  { component: ["LIQUID COOLING", "PUMP"], symptom: "MSG", l2Summary: 'EICAS MSG "LIQUID COOLING PUMP" DISPLAYED' }, { component: ["RAM FAN"], symptom: "MSG", l2Summary: 'EICAS MSG "RAM FAN" DISPLAYED' },
+            { component: ["CPRSR", "VARIABLE"], symptom: ["MSG","DIFFUSER"], l2Summary: 'EICAS MSG "CPRSR VARIABLE DIFFUSER" DISPLAYED' }, { component: ["CARGO", "TEMP"], symptom: ["UNABLE TO CONTROL"], l2Summary: 'UNABLE TO CONTROL BULK CARGO TEMP' },{ component: ["VALVE", "AFT"], symptom: ["MSG","OUTFLOW"], l2Summary: 'EICAS MSG "OUTFLOW VALVE AFT" DISPLAYED' },{ component: ["LAV-GALLEY", "FAN"], symptom: ["MSG"], l2Summary: 'EICAS MSG "LAV-GALLEY FAN" DISPLAYED' },{ component: ["TEMP","SENSOR"], symptom: ["MSG | EICAS","COND"], l2Summary: 'EICAS MSG "COND TEMP SENSOR" DISPLAYED' },
+            { component: ["RAM","AIR","DOOR","INLET"], symptom: ["MSG"], l2Summary: 'EICAS MSG "RAM AIR INLET DOOR" DISPLAYED' },{ component: ["CABIN","TEMP","CONTROL"], symptom: ["MSG"], l2Summary: 'EICAS MSG ""CABIN TEMP CONTROL" DISPLAYED' },{ component: ["VENT","VCRU","OVHT"], symptom: [""], l2Summary: 'DM : VENT VCRU OVHT PROT' }, {component: ["AIR","PACK","TEMP","MONITORING"], symptom: [""], l2Summary: 'AIR PACK TEMP MONITORING' },{ component: ["AIR","PACK","RAM","DOOR","INLET"], symptom: [""], l2Summary: 'DM : AIR PACK RAM AIR DOOR INLET' },{ component: ["CARGO","HEATER"], symptom: ["COND"], l2Summary: 'DM: COND BULK CARGO HEATER' },
+            // --- ATA 23 ---
+            { component: ["SATCOM"], symptom: "FAULT", l2Summary: "DM : COM SATCOM FAULT" },{ component: ["SATCOM","COMP"], symptom: "", l2Summary: "DM : COM SATCOM FAULT" },
+            { component: ["DATALINK", "COM HF"], symptom: "", l2Summary: "DM : COM HF DATALINK" },
+            { component: ["COM HF"], symptom: "FAULT", l2Summary: "DM : COM HF DATALINK" },
+            { component: ["DATALINK"], symptom: "FAULT", l2Summary: "DATALINK FAULT" },
+            { component: ["EICAS", "SATCOM"], symptom: "MSG | DISPLAY", l2Summary: 'EICAS STAT MSG "SATCOM SYS" DISPLAY' },
+            { component: ["SATVOICE"], symptom: "LOST", l2Summary: 'EICAS MSG " SATVOICE LOST" DISPLAYED' },
+            { component: ["DATALINK","VHF"], symptom: "", l2Summary: 'EICAS MSG "VHF DATALINK" DISPLAYED' },
+            { component: ["VIDEO"], symptom: "NOT AVAIL", l2Summary: "CAMERA/VDO SYSTEM FAULT" },
+            { component: ["COM | COMP","VHF","EMER"], symptom: "REDUNDANCY", l2Summary: "DM: COM VHF EMER SUPPLY REDUNDANCY" },
+            { component: ["CAMERA"], symptom: "", l2Summary: "CAMERA/VDO SYSTEM FAULT" },
+            { component: ["VIDEO"], symptom: "", l2Summary: "CAMERA/VDO SYSTEM FAULT" },
+            { component: ["BIRD"], symptom: "", l2Summary: "BIRD STRIKE" },
+            { component: "BOOM MIC | BOOMSET | HEADSET", symptom: "", l2Summary: "HEADSET/BOOMSET FAULT" },
+            // --- ATA 24 ---
+            { component: ["TR"], symptom: "FAULT", l2Summary: "ELEC TR FAULT" }, { component: ["TR","ELEC"], symptom: "", l2Summary: "ELEC TR FAULT" },
+            { component: ["DRIVE", "OIL LEVEL"], symptom: "", l2Summary: "ELEC DRIVE OIL LEVEL LOW" }, { component: ["NBPT"], symptom: "NOT FUNCTION", l2Summary: "NBPT NOT FUNCTION" },
+            { component: ["ELEC", "C/B", "MONITORING"], symptom: "", l2Summary: "ELEC C/B MONITORING" }, { component: ["RAT"], symptom: "SHEDDING", l2Summary: "ELEC RAT SHEDDING REDUNDANCY" },
+            { component: ["CAMERA"], symptom: "INOP | BLUR", l2Summary: "CAMERA/VDO SYSTEM FAULT" }, { component: ["ELEC", "OIL", "IDG"], symptom: "", l2Summary: "ELEC IDG OIL SYS FAULT" },
+            { component: ["ELEC", "GEN", "VALVE"], symptom: "MSG", l2Summary: 'ELEC GEN AIR/OIL VALVE' }, { component: ["ELEC GEN", "AIR"], symptom: "DISPLAY", l2Summary: 'ELEC GEN AIR/OIL VALVE' },{ component: ["ENG | EEC", "GEN", "AIR","VALVE"], symptom: "DISPLAY", l2Summary: 'ENG GEN AIR/OIL VALVE'},{ component: ["ELEC", "ENGINE | ENG", "START | STARTER"], symptom: "DISPLAY", l2Summary: 'ELEC ENGINE STARTER'},
+            // --- ATA 26 ---
+            { component: ["SMOKE"], symptom: "CAUTION | MSG | DISPLAY | FAULT", l2Summary: "SMOKE DETECTION" },
+            { component: ["FIRE LOOP"], symptom: "", l2Summary: "DM: ENG FIRE LOOP" },
+            { component: ["DET FIRE"], symptom: "MSG | DISPLAY", l2Summary: 'EICAS MSG "DET FIRE ENG" DISPLAYED' },
+            // --- ATA 27 ---
+            { component: ["F/CTL", "SLAT","TIP BRK", "SENSOR"], symptom: "", l2Summary: "F/CTL SLATS TIP BRK SENSOR" },
+            { component: ["F/CTL", "FLAP", "ADGB"], symptom: "", l2Summary: "F/CTL FLAP ADGB" }, { component: ["F/CTL", "STABILIZER"], symptom: "ACTUATOR", l2Summary: "F/CTL STABILIZER ACTUATOR FAULT" },
+            { component: ["F/CTL", "RUDDER"], symptom: "ACTUATOR", l2Summary: "F/CTL RUDDER ACTUATOR FAULT" },
+            { component: ["F/CTL", "INR AILERON"], symptom: "ACTUATOR", l2Summary: "F/CTL INR AILERON ACTUATOR FAULT" },
+            { component: ["F/CTL", "AILERON"], symptom: ["OUT","ACTUATOR"], l2Summary: "F/CTL OUTR AILERON ACTUATOR FAULT" }, { component: ["F/CTL", "ELEVATOR"], symptom: "ACTUATOR", l2Summary: "F/CTL ELEVATOR ACTUATOR" },
+            { component: ["F/CTL", "PRIM"], symptom: "", l2Summary: "F/CTL PRIM FAULT" },{ component: ["PRIM"], symptom: "FAULT", l2Summary: "F/CTL PRIM FAULT" }, { component: ["F/CTL", "SPLR"], symptom: "FAULT | ACTUATOR", l2Summary: "F/CTL SPLR FAULT" },
+            { component: ["F/CTL", "SLAT"], symptom: "", l2Summary: "F/CTL SLAT SYS FAULT" }, { component: ["F/CTL", "AILERON", "SENSOR"], symptom: "PRESSURE", l2Summary: "F/CTL AILERON PRESSURE SENSOR" },
+            { component: ["F/CTL", "DIFF", "FLAP"], symptom: "SETTING", l2Summary: "F/CTL DIFF FLAP SETTING" }, { component: ["F/CTL", "ELAC", "PITCH"], symptom: "FAULT", l2Summary: "F/CTL ELAC PITCH FAULT" },{ component: ["ELAC"], symptom: "FAULT", l2Summary: "F/CTL ELAC PITCH FAULT" },
+            { component: ["F/CTL", "ADR/IR/ISIS"], symptom: "REDUNDANCY", l2Summary: "F/CTL ADR/IR/ISIS DATA REDUNDANCY" }, { component: ["F/CTL", "SPLR"], symptom: "", l2Summary: "F/CTL SPLR FAULT" },
+            { component: ["F/CTL", "FLAP"], symptom: "", l2Summary: "F/CTL FLAP SYS FAULT" }, { component: ["FLAP"], symptom: "FAULT", l2Summary: "F/CTL FLAP SYS FAULT" },
+            // --- ATA 28 ---
+            { component: ["FUEL","TEMP", "INDICATION"], symptom: "", l2Summary: 'FUEL TEMP INDICATION' },
+            { component: ["FUEL", "INDICATION"], symptom: "QTY | QUANTITY", l2Summary: 'FUEL QTY INDICATION' },
+            { component: ["FUEL", "VLV | VALVE"], symptom: "FAULT | MSG", l2Summary: "FUEL ENG VALVE FAULT" },
+            { component: ["FUEL INERTING SYS"], symptom: "FAULT", l2Summary: "FUEL INERTING SYS FAULT" }, { component: ["FUEL INERTING SYS"], symptom: "", l2Summary: "FUEL INERTING SYS FAULT" }, { component: ["FUEL","SYS"], symptom: "INERTING", l2Summary: "FUEL INERTING SYS FAULT" },
+            { component: ["CTR", "PMP | PUMP"], symptom: "LO PR | FAULT", l2Summary: "FUEL PUMP FAULT" },
+            { component: ["FUEL", "SCAVENGE"], symptom: "MSG", l2Summary: 'FUEL SCAVENGE SYS' },
+            { component: ["FUEL", "DATA"], symptom: "REDUNDANCY", l2Summary: "FUEL TK DATA REDUNDANCY" },
+            { component: ["FUEL", "VLV | VALVE", "SCAVENGE"], symptom: "", l2Summary: "FUEL SCAVENGE VLV" },
+            { component: ["FUEL", "QTY | QUANTITY", "SENSOR"], symptom: "", l2Summary: "FUEL QTY SENSOR" },
+            { component: ["FUEL","TK", "PMP | PUMP", "STBY"], symptom: "", l2Summary: "FUEL TK STBY PUMP FAULT" },
+            { component: ["FUEL", "AFT", "XFR"], symptom: "FAULT | INOP", l2Summary: "FUEL AFT XFR FAULT" }, { component: ["FUEL", "CTR", "XFR"], symptom: "", l2Summary: "FUEL CTR XFR FAULT" },
+            { component: ["FUEL", "FEED"], symptom: "FAULT", l2Summary: "FUEL AUTO FEED FAULT" }, { component: ["FUEL", "JETT", "PMP | PUMP"], symptom: "", l2Summary: "FUEL JETT PUMP" },
+            // --- ATA 29 ---
+            { component: ["HYD","VLV | VALVE","PASS"], symptom: ["MSG | DISPLAY","EXCHR"], l2Summary: "HYD VLV HT EXCHR BY PASS" }, { component: ["HYD","RSVR", "AIR", "BLEED"], symptom: "", l2Summary: "HYD RSVR AIR BLEED" },
+            { component: ["HYD", "PASS | VLV"], symptom: "EXCHR", l2Summary: "HYD VLV HT EXCHR BY PASS" }, { component: ["HYD", "PASS | VLV"], symptom: "", l2Summary: "HYD VLV HT EXCHR BY PASS" },
+            // --- ATA 30 ---
+            { component: ["ICE DETECT"], symptom: "FAULT | INOP | MSG", l2Summary: "A-ICE DETECT FAULT" },
+            { component: ["A-ICE", "PRSOV"], symptom: "REGUL", l2Summary: "DM: A-ICE ENG PRSOV REGUL" },
+            { component: ["A-ICE", "WINDSHIELD"], symptom: "", l2Summary: "A-ICE WINDSHIELD HEATG" },
+            { component: ["A-ICE", "WING"], symptom: "", l2Summary: "A-ICE WING FAULT" },
+            // --- ATA 32 ---
+            { component: ["BRAKE | BRK", "NORM"], symptom: "", l2Summary: "BRAKES PART NORMAL BRAKE FAULT" }, { component: ["STEER", "CTL"], symptom: "", l2Summary: "DM: STEER CTL" },
+            { component: ["BRAKE | BRK", "PART A-SKID"], symptom: "FAULT", l2Summary: "BRAKES PART A-SKID FAULT" },
+            { component: ["BRAKE | BRK", "NORM"], symptom: "FAULT", l2Summary: "BRAKES PART NORMAL BRAKE FAULT" },
+            { component: ["BRAKE | BRK", "PART ALTN"], symptom: "FAULT", l2Summary: "BRAKES PART ALTN FAULT" },
+            { component: ["BRAKE | BRK", "EMER"], symptom: "FAULT", l2Summary: "EMER BRK FAULT" },
+            { component: ["BRAKE | BRK", "REMOTE", "BRK CTL"], symptom: "INPUT", l2Summary: "BRAKES REMOTE BRK CTL INPUT" },
+            { component: ["GEAR","INDICATION","SYS"], symptom: "MSG", l2Summary: 'EICAS MSG "GEAR INDICATION SYS" DISPLAYED' },
+            { component: "TIRE", symptom: "LOW", l2Summary: "TIRE PRESSURE LOW" }, { component: ["TIRE","PRESS","SYS"], symptom: "", l2Summary: 'EICAS MSG "TIRE PRESS SYS" DISPLAYED' },, { component: ["TIRE","PRESS"], symptom: "MSG", l2Summary: 'EICAS MSG "TIRE PRESS SYS" DISPLAYED' }, 
+            { component: ["NOSE","WHEEL","TIRE"], symptom: "OUT", l2Summary: "NOSE WHEEL TIRE WORN OUT" }, { component: "BRAKE | BRK", symptom: ["AUTO","FAULT"], l2Summary: "BRAKES AUTO BRK FAULT" },{ component: ["BRAKE | BRK","TEMP"], symptom: "", l2Summary: "BRAKES TEMP MONITORING" }, { component: ["BRAKE | BRK","TEMP","WHEEL"], symptom: "", l2Summary: "BRAKES TEMP WHEEL" },{ component: ["BRAKE | BRK","ALTN","EMER"], symptom: "", l2Summary: "DM : BRAKES ALTN + EMER BRK" },{ component: ["BRAKE | BRK","A-SKID"], symptom: "", l2Summary: "DM : BRAKES PART A-SKID FAULT" },{ component: ["BRAKE | BRK"], symptom: ["SAFETY","TEST"], l2Summary: "DM : BRAKES SAFETY TEST REQUIRED" },{ component: ["PINS"], symptom: "INSTALLED", l2Summary: "LDG PINS INSTALLED" },
+            { component: ["BRAKE | BRK","ALTN"], symptom: "RELEASE", l2Summary: "BRAKES ALTN BRK RELEASED" },
+            // --- ATA 33 ---
+            { component: ["EXT","NAV LT"], symptom: "", l2Summary: "DM: EXT LT NAV LT FAULT" },{ component: ["EXT","STROBE LT"], symptom: "", l2Summary: "DM: EXT LT STROBE LT" },
+            { component: ["EXT","LDG LT"], symptom: "", l2Summary: "DM: EXT LT PART LDG LT" }, { component: ["EXT","BEACON LT"], symptom: "", l2Summary: "DM: EXT LT BEACON LT" },{ component: ["EXT","TAXI","LT"], symptom: "RWY TURN OFF", l2Summary: "DM: EXT LT TAXI OR RWY TURN OFF LT." },
+            // --- ATA 34 ---
+            { component: ["NAV", "MFP", "TAT"], symptom: "", l2Summary: "NAV MFP TAT FAULT" }, { component: ["MMR"], symptom: "RESET", l2Summary: "PLS RESET MMR" }, { component: ["ADR"], symptom: "FAULT", l2Summary: "NAV ADR FAULT" },{ component: ["IR | IRS"], symptom: "FAULT", l2Summary: "NAV IR FAULT" },{ component: ["ILS"], symptom: "FAULT", l2Summary: "NAV ILS FAULT" },
+            { component: ["WXR ANT | WXR"], symptom: "DISPLAY", l2Summary: 'EICAS MSG "WXR SYS" DISPLAYED' }, { component: ["NAV","PRED W/S"], symptom: "", l2Summary: "NAV PRED W/S DET FAULT" },
+            { component: ["RAD ALT"], symptom: "FAULT", l2Summary: "RADIO ALTIMETER FAULT" },
+            { component: ["GPS | GPS2"], symptom: "INOP | LOST | FAULT", l2Summary: "GPS SYS FAULT" },{ component: ["NAV", "GPS"], symptom: "FAULT", l2Summary: "GPS SYS FAULT" },
+            { component: ["ATC/XPDR"], symptom: "FAULT", l2Summary: "NAV ATC/XPDR FAULT" }, { component: ["ATC","XPDR"], symptom: "FAULT", l2Summary: "NAV ATC/XPDR FAULT" }, { component: ["NAV","XPDR"], symptom: "FAULT", l2Summary: "NAV XPDR FAULT" },
+            { component: ["SURV", "TCAS"], symptom: "FAULT", l2Summary: "DM: SURV TCAS FAULT" },{ component: ["A-ICE", "PROBE"], symptom: "HEATG", l2Summary: "PROBE HEATER FAULT" },
+            { component: ["TCAS"], symptom: "INTERMITTENT | FAULT", l2Summary: "NAV TCAS SYS FAULT" }, { component: ["GPS"], symptom: ["JAMMED | JAMMIN | JAMM | SPOOFING"], l2Summary: "GPS SPOOFING AND JAMMING" },
+            { component: ["WINDSHEAR PREDICTIVE"], symptom: "MSG", l2Summary: 'EICAS MSG "WINDSHEAR PREDICTIVE" DISPLAYED' },{ component: ["WEATHER RADAR SYS"], symptom: "MSG | DISPLAY", l2Summary: 'EICAS MSG "WEATHER RADAR SYS" DISPLAYED' },
+            { component: ["SGL", "SOURCE", "RAD ALT", "GPS"], symptom: "MSG", l2Summary: 'EICAS MSG "SGL SOURCE RAD ALT" DISPLAYED' },
+            { component: ["EICAS"], symptom: ["NO LAND", "MSG"], l2Summary: 'EICAS MSG "NO LAND" DISPLAYED' },
+            { component: ["ADS-B"], symptom: ["OUT", "DISPLAY"], l2Summary: 'EICAS MSG "ADS-B OUT ..." DISPLAYED' },
+            { component: ["NAV", "GPS"], symptom: ["SINGLE", "MSG"], l2Summary: 'EICAS MSG "NAV SINGLE GPS" DISPLAYED' },
+            { component: ["NAV", "GNSS"], symptom: ["REJECTED"], l2Summary: "NAV GNSS REJECTED BY IRS" }, { component: ["GNSS"], symptom: ["REJECTED"], l2Summary: "NAV GNSS REJECTED BY IRS" }, { component: ["NAV", "GNSS"], symptom: ["FAULT"], l2Summary: "NAV GNSS FAULT" },
+            { component: ["WXR ANT"], symptom: "INTERMITTENT", l2Summary: "WXR ANTENNA FAULT" },
+            { component: ["WXR", "SURV"], symptom: "", l2Summary: "SURV WXR FAULT" }, { component: ["WXR"], symptom: "FAULT", l2Summary: "WXR FAULT" },
+            { component: ["ADS-B", "SURV","TRAFFIC"], symptom: "", l2Summary: "DM: SURV ADS-B TRAFFIC" }, { component: ["ENG","GA SOFT"], symptom: "", l2Summary: "DM: ENG GA SOFT" },
+            { component: ["TCAS", "SURV"], symptom: "FAULT", l2Summary: "SURV TCAS FAULT" }, { component: ["XPDR", "SURV"], symptom: "", l2Summary: "SURV XPDR FAULT" },
+            // --- ATA 36 ---
+            { component: ["ENG", "BLEED"], symptom: "", l2Summary: "AIR ENG BLEED FAULT" }, { component: ["AIR","BLEED","MAINTENANCE | MAINT"], symptom: "", l2Summary: "AIR BLEED MAINTENANCE MSG" },
+            { component: ["AIR"], symptom: "LEAK, REDUNDANCY", l2Summary: "AIR LEAK DET REDUNDANCY" },{ component: ["AIR","WING"], symptom: "LEAK", l2Summary: "AIR WING LEAK" },
+            { component: ["APU","BLEED"], symptom: "FAULT", l2Summary: "AIR APU BLEED FAULT" }, { component: ["BLEED", "MONIT"], symptom: "FAULT", l2Summary: "BLEED MONIT SYS FAULT" }, { component: ["BLEED", "ENG"], symptom: ["MSG","OFF"], l2Summary: 'EICAS MSG "BLEED OFF ENG" DISPLAYED' },
+            { component: ["BLEED", "HPSOV"], symptom: ["MSG"], l2Summary: 'EICAS MSG "BLEED HPSOV" DISPLAYED' }, { component: ["BLEED","VALVE | VLV", "APU"], symptom: ["MSG"], l2Summary: 'EICAS MSG "BLEED VALVE APU" DISPLAYED' }, { component: ["BLEED", "PRESS","SENSOR"], symptom: ["MSG"], l2Summary: 'EICAS MSG "BLEED PRESS SENSOR" DISPLAYED' },
+            { component: ["AIR","ENG","BLEED","VALVE | VLV"], symptom: ["NOT","CLOSE | CLSD"], l2Summary: 'AIR ENG BLEED VALVE NOT CLOSED' },
+            // --- ATA 44 ---
+            { component: ["WIFI"], symptom: "INOP | NOT AVAIL", l2Summary: "WIFI FAULT" }, { component: ["WIFI"], symptom: "", l2Summary: "WIFI FAULT" },
+            { component: ["INTERPHONE"], symptom: "DEGRADED | FAULT | INOP", l2Summary: "INTERPHONE SYS FAULT" }, { component: ["HANDSET"], symptom: "", l2Summary: "HANDSET FAULT" },
+            // --- ATA 47 ---
+            { component: ["NITROGEN"], symptom: ["MSG | DISPLAY"], l2Summary: 'EICAS MSG "NITROGEN GENERATION SYS" DISPLAYED' },
+            // --- ATA 49 ---
+            { component: ["APU"], symptom: ["AUTO", "SHUT | SHUTDOWN"], l2Summary: "APU AUTO SHUTDOWN" },
+            { component: ["APU", "FLAP"], symptom: "CLOSE", l2Summary: "APU FLAP CLOSED" },
+            { component: ["APU", "OIL"], symptom: "LOW", l2Summary: "APU LOW OIL LEVEL" },
+            { component: ["APU", "OIL","FILTER"], symptom: "", l2Summary: "DM: APU OIL FILTER" },
+            { component: ["APU", "OIL","SENSOR"], symptom: "", l2Summary: "APU OIL LEVEL SENSOR" },
+            // --- ATA 52 ---
+            { component: ["REFUEL", "PANEL", "DOOR"], symptom: "", l2Summary: "DOOR INDICATION FAULT" },
+            { component: ["DOOR"], symptom: "AVIONIC | AVNCS", l2Summary: "DOOR AVIONIC" },
+            { component: ["DOOR"], symptom: ["LOUD", "NOISE"], l2Summary: "LOUD NOISE AT DOOR" },
+            // --- ATA 56 ---
+            { component: ["WINDSHIELD | WINDOW"], symptom: "CLEAN | Dirty", l2Summary: "CLEANING WINDOWS" },
+            { component: ["WINDSHIELD"], symptom: "SOUND", l2Summary: "SOUND NEAR WINDOWS" },
+            // --- ATA 73 ---
+            { component: ["CTL SYS"], symptom: "FAULT", l2Summary: "ENG CTL SYS FAULT" }, { component: ["ENG", "CTRL"], symptom: "", l2Summary: "ENG CTL SYS FAULT" },
+            { component: [""], symptom: ["LONG TERM | LONGTERM", "FAULT"], l2Summary: "(LONG TERM FAULT)" }, { component: ["ENG","SHAFT PROT"], symptom: ["LOST"], l2Summary: "ENG SHAFT PROT LOST" },
+            { component: ["ENG EEC"], symptom: ["MSG | DISPLAY"], l2Summary: 'EICAS MSG "ENG EEC" DISPLAYED' },{ component: ["ENG", "FUEL", "FILTER","CLG"], symptom: [""], l2Summary: 'ENG FUEL FILTER CLOG' },
+            { component: ["ENG", "FUEL FILTER", "SENSOR"], symptom: ["MSG | DISPLAY"], l2Summary: 'EICAS MSG "ENG FUEL FILTER SENSOR" DISPLAYED' },
+            { component: ["ENG", "TURBINE", "CASE"], symptom: "COOLING", l2Summary: "ENG HP TURBINE CASE COOLING" },
+            // --- ATA 74 ---
+            { component: ["ENG", "IGNITOR"], symptom: ["MSG | DISPLAY"], l2Summary: 'EICAS MSG "ENG IGNITOR" DISPLAYED' },
+            { component: ["ENG", "IGN"], symptom: ["SINGLE | FAULT"], l2Summary: 'ENG SINGLE IGN' },
+            // --- ATA 77 ---
+            { component: [""], symptom: "SHORT TERM, FAULT", l2Summary: "(SHORT TERM FAULT)" }, { component: ["ENG"], symptom: ["MINOR", "FAULT"], l2Summary: "DM: ENG MINOR FAULT" }
+        ];
+
+        const masterFuzzyWords = [
+            ...wordCategories.Component, 
+            ...wordCategories.Symptom,
+            ...wordCategories.Action,
+            ...wordCategories.Event,
+            ...wordCategories.Operation,
+            ...wordCategories.Location
+        ];
+        const actionKeywords = ["RESET", "REPLACED", "REPAIRED", "ADJUSTED", "DEFERRED", "INSPECTED", "SERVICED", "CLEANED", "LUBRICATED", "SECURED", "REMOVED"];
+        const ataDescriptions = { "00": "Product - General", "05": "Scheduled/unscheduled maintenance", "06": "Dimensions and Areas", "07": "Lifting and Shoring", "08": "Leveling and weighing", "09": "Towing and Taxiing", "10": "Parking, Mooring, Storage", "11": "Placards and Markings", "12": "Servicing", "20": "Standard Practices - Airframe", "21": "Air Conditioning", "22": "Auto Flight", "23": "Communications", "24": "Electrical Power", "25": "Equipment/Furnishings", "26": "Fire Protection", "27": "Flight Controls", "28": "Fuel", "29": "Hydraulic Power", "30": "Ice and Rain Protection", "31": "Indicating/Recording Systems", "32": "Landing Gear", "33": "Lights", "34": "Navigation", "35": "Oxygen", "36": "Pneumatic", "38": "Water/Waste", "42": "Integrated Modular Avionics", "44": "Cabin Systems", "45": "Central Maintenance System", "46": "Information Systems", "47": "Inert Gas System", "49": "Airborne Auxiliary Power", "50": "Cargo/Accessory Compartments", "51": "Standard Practices - Structures", "52": "Doors", "53": "Fuselage", "54": "Nacelles / Pylons", "55": "Stabilizers", "56": "Windows", "57": "Wings", "70": "Standard Practices - Engine", "71": "Power Plant", "72": "Engine", "73": "Engine Fuel and Control", "74": "Ignition", "75": "Air", "76": "Engine Controls", "77": "Engine Indicating", "78": "Exhaust", "79": "Oil", "80": "Starting", "91": "Air Vehicle Wiring" };
+        let rawData = [], processedData = [], currentFilteredData = [];
+        let allAvailableCols = []; 
+        let visibleColumns = new Set();
+        let activeDropdown = null;
+        let currentFleetLimit = 10;
+        let currentTrendFreq = 'Day';
+        let currentPage = 1;
+        const rowsPerPage = 200;
+        let currentRenderData = []; 
+        let phraseDataStore = [];
+        let sankeyDataExport = [];
+        let globalFuzzyMap = {}; 
+        let currentFuzzySuggestions = []; 
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', e => { if(e.target.files.length) startProcessing(e.target.files[0]); });
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('active'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
+        dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('active'); if(e.dataTransfer.files.length) startProcessing(e.dataTransfer.files[0]); });
+
+        function startProcessing(file) {
+            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('loading-screen').classList.remove('hidden');
+            setTimeout(() => { processFile(file); }, 100);
+        }
+
+        function processFile(file) {
+            Papa.parse(file, {
+                header: true, skipEmptyLines: true,
+                complete: res => {
+                    rawData = res.data;
+                    analyzeData();
+                    document.getElementById('loading-screen').classList.add('hidden');
+                    document.getElementById('dashboard-ui').classList.remove('hidden');
+                    document.getElementById('fuzzy-trigger').classList.remove('hidden');
+                }
+            });
+        }
+
+        function toggleFuzzySidebar() {
+            const modal = document.getElementById('fuzzy-modal');
+            modal.classList.toggle('hidden');
+            modal.classList.toggle('flex');
+            
+            if (!modal.classList.contains('hidden')) {
+                renderMasterVocabulary();
+                if (document.getElementById('modal-tab-vocab').classList.contains('hidden') && document.getElementById('modal-tab-audit').classList.contains('hidden')) {
+                    switchModalTab('vocab');
+                }
+            }
+        }
+
+        function switchModalTab(tabId) {
+            const tabs = ['vocab', 'audit'];
+            tabs.forEach(id => {
+                const content = document.getElementById(`modal-tab-${id}`);
+                const btn = document.getElementById(`modal-tab-btn-${id}`);
+                if (content) {
+                    content.classList.add('hidden');
+                    if (id === 'audit') content.classList.remove('flex');
+                }
+                if (btn) {
+                    btn.classList.remove('border-purple-600', 'text-purple-700');
+                    btn.classList.add('border-transparent', 'text-gray-500');
+                }
+            });
+            
+            const targetTab = document.getElementById(`modal-tab-${tabId}`);
+            const targetBtn = document.getElementById(`modal-tab-btn-${tabId}`);
+            if (targetTab) {
+                targetTab.classList.remove('hidden');
+                if (tabId === 'audit') targetTab.classList.add('flex');
+            }
+            if (targetBtn) {
+                targetBtn.classList.add('border-purple-600', 'text-purple-700');
+                targetBtn.classList.remove('border-transparent', 'text-gray-500');
+            }
+            if (tabId === 'audit') {
+                renderAuditTab();
+            }
+        }
+
+        function renderMasterVocabulary() {
+            const renderList = (elementId, array, countId) => {
+                document.getElementById(countId).innerText = array.length;
+                let html = '<ul class="divide-y divide-gray-100">';
+                [...array].sort().forEach(word => {
+                    html += `<li class="py-1.5 px-3 hover:bg-gray-100 text-gray-700 rounded transition">${escapeHTML(word)}</li>`;
+                });
+                html += '</ul>';
+                document.getElementById(elementId).innerHTML = html;
+            };
+
+            renderList('list-comp', wordCategories.Component, 'count-comp');
+            renderList('list-symp', wordCategories.Symptom, 'count-symp');
+            renderList('list-act', actionKeywords, 'count-act');
+        }
+        function calculateSimilarity(s1, s2) {
+            let t1 = s1.replace(/\s+/g, '').toUpperCase();
+            let t2 = s2.replace(/\s+/g, '').toUpperCase();
+            if (t1 === t2) return 100;
+            if (t1.length === 0 || t2.length === 0) return 0;
+            let matrix = [];
+            for (let i = 0; i <= t2.length; i++) matrix[i] = [i];
+            for (let j = 0; j <= t1.length; j++) matrix[0][j] = j;
+            for (let i = 1; i <= t2.length; i++) {
+                for (let j = 1; j <= t1.length; j++) {
+                    if (t2.charAt(i-1) === t1.charAt(j-1)) {
+                        matrix[i][j] = matrix[i-1][j-1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i-1][j-1] + 1, 
+                            matrix[i][j-1] + 1,   
+                            matrix[i-1][j] + 1    
+                        );
+                    }
+                }
+            }
+            let distance = matrix[t2.length][t1.length];
+            let maxLength = Math.max(t1.length, t2.length);
+            return Math.max(0, Math.round((1 - (distance / maxLength)) * 100));
+        }
+        function runFuzzyMatching() {
+            const threshold = 75; 
+            const stopWords = new Set(["THE","AND","TO","OF","IN","IS","FOR","WITH","ON","AT","FROM","BY","NAME","AUTH","NO","DATE","TIME","REF","AMM","TASK","REV","ACTION","CHECKED","NOTED","FOUND","HAS","WAS","MSG"]);
+            
+            // ลบ setTimeout ออก เพื่อบังคับให้ระบบประมวลผลคำผิดให้เสร็จก่อนส่งไป L2 Summary
+            let unknownWords = new Set();
+            processedData.forEach(row => {
+                if(row.category !== 'Tech') return;
+                let txt = row.cleanComp;
+                if(!txt) return;
+                const words = txt.replace(/[^a-zA-Z0-9\/\-\s]/g, ' ').toUpperCase().split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w) && isNaN(w));
+                words.forEach(w => {
+                    if (!masterFuzzyWords.includes(w) && !globalFuzzyMap[w]) {
+                        unknownWords.add(w);
+                    }
+                });
+            });
+            currentFuzzySuggestions = [];
+            unknownWords.forEach(badWord => {
+                let bestMatch = "";
+                let bestScore = 0;
+                masterFuzzyWords.forEach(masterWord => {
+                    let score = calculateSimilarity(badWord, masterWord);
+                    if(score > bestScore) {
+                        bestScore = score;
+                        bestMatch = masterWord;
+                    }
+                });
+                if(bestScore >= threshold && bestScore < 100) { 
+                    currentFuzzySuggestions.push({ original: badWord, suggested: bestMatch, score: bestScore });
+                }
+            });
+            currentFuzzySuggestions.sort((a,b) => b.score - a.score);
+        }
+
+        function extractConcepts(text) {
+            const upperTxt = (text || "").toUpperCase();
+            const stopWords = new Set(["THE","AND","TO","OF","IN","IS","FOR","WITH","ON","AT","FROM","BY","NAME","AUTH","NO","DATE","TIME","REF","AMM","TASK","REV","ACTION","CHECKED","NOTED","FOUND","HAS","WAS","MSG"]);
+            
+            const wordsSet = new Set();
+            const foundSymp = [];
+            const foundComp = [];
+
+            masterFuzzyWords.forEach(mw => {
+                const escapedMw = mw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                if (new RegExp(`(^|[^A-Z0-9_])${escapedMw}([^A-Z0-9_]|$)`, 'i').test(upperTxt)) {
+                    wordsSet.add(mw.toUpperCase());
+                    const isSymp = wordCategories.Symptom.includes(mw);
+                    const item = { master: mw, original: mw, score: 100 };
+                    if (isSymp) {
+                        if (!foundSymp.some(x => x.master === mw)) foundSymp.push(item);
+                    } else {
+                        if (!foundComp.some(x => x.master === mw)) foundComp.push(item);
+                    }
+                }
+            });
+
+            const words = upperTxt.replace(/[^A-Z0-9\/\-\s]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w) && isNaN(w));
+            words.forEach(w => {
+                if (wordsSet.has(w)) return;
+                
+                let matchedMaster = null;
+                let matchScore = 0;
+
+                if (globalFuzzyMap[w]) {
+                    matchedMaster = globalFuzzyMap[w];
+                    matchScore = calculateSimilarity(w, matchedMaster);
+                } else {
+                    const suggestion = currentFuzzySuggestions.find(s => s.original === w);
+                    if (suggestion) {
+                        matchedMaster = suggestion.suggested;
+                        matchScore = suggestion.score;
+                    }
+                }
+
+                if (matchedMaster && !wordsSet.has(matchedMaster.toUpperCase())) {
+                    wordsSet.add(matchedMaster.toUpperCase());
+                    const isSymp = wordCategories.Symptom.includes(matchedMaster);
+                    const item = { master: matchedMaster, original: w, score: matchScore };
+                    if (isSymp) foundSymp.push(item);
+                    else foundComp.push(item);
+                }
+            });
+
+            return { wordsSet, foundSymp, foundComp };
+        }
+
+        function evaluateL2Summaries(extractedConcepts) {
+            const l2Summaries = [];
+            
+            // ดึงเฉพาะ Master word ที่ผ่านการคัดกรองมาแล้ว (ที่โชว์ในตาราง)
+            const extractedWords = [
+                ...(extractedConcepts.foundSymp || []),
+                ...(extractedConcepts.foundComp || [])
+            ].map(item => item.master.toUpperCase());
+
+            const checkCondition = (condition) => {
+                if (!condition) return true;
+                let andGroups = [];
+                
+                if (Array.isArray(condition)) {
+                    andGroups = condition;
+                } else if (typeof condition === 'string' && condition.trim() !== '') {
+                    if (condition.includes(',') && !condition.includes('|')) {
+                        andGroups = condition.split(',');
+                    } else {
+                        andGroups = [condition];
+                    }
+                } else {
+                    return true;
+                }
+
+                // ต้องผ่านทุก Group (AND logic)
+                return andGroups.every(group => {
+                    // ในแต่ละ Group ถ้ามีเครื่องหมาย | ให้แบ่งเป็น OR logic
+                    const orTerms = String(group).split('|').map(s => s.trim().toUpperCase()).filter(s => s);
+                    if (orTerms.length === 0) return true;
+                    
+                    // ขอแค่มีคำใดคำหนึ่งปรากฏในรายการที่สกัดได้ (OR logic)
+                    return orTerms.some(term => extractedWords.includes(term));
+                });
+            };
+
+            l2MappingRules.forEach(rule => {
+                const compMatch = checkCondition(rule.component);
+                const sympMatch = checkCondition(rule.symptom);
+                const locMatch = checkCondition(rule.location);
+
+                if (compMatch && sympMatch && locMatch) {
+                    if ((rule.component || rule.symptom || rule.location) && !l2Summaries.includes(rule.l2Summary)) {
+                        l2Summaries.push(rule.l2Summary);
+                    }
+                }
+            });
+            return l2Summaries;
+        }
+
+        function renderAuditTab() {
+            const phraseCounts = {};
+            const auditRows = [];
+            const techData = currentFilteredData.filter(d => d.category === 'Tech');
+
+            techData.forEach(row => {
+                const txt = row['Complaint Text'] || "";
+                if(!txt) return;
+
+                const cleanTxt = txt.replace(/(Name\s*:|Auth\s*no\.?\s*:|Created\s*by\s*:|Action\s*STA\s*:|\-{3,})[\s\S]*/gi, "").trim();
+                const concepts = extractConcepts(cleanTxt);
+
+                auditRows.push({
+                    acreg: row.ACREG || '-',
+                    ata: row['Main ATA'] || row.ataLabel || '-',
+                    date: row['Complaint Date'] || '-',
+                    noti: row['Notification'] || '-',
+                    text: cleanTxt,
+                    symptoms: concepts.foundSymp,
+                    components: concepts.foundComp,
+                    l2Summaries: row.l2SummariesArr 
+                });
+
+                concepts.wordsSet.forEach(masterWord => {
+                    phraseCounts[masterWord] = (phraseCounts[masterWord] || 0) + 1;
+                });
+            });
+
+            const sortedCounts = Object.entries(phraseCounts).sort((a,b) => b[1] - a[1]);
+            let summaryHtml = '';
+            if (sortedCounts.length === 0) {
+                summaryHtml = '<tr><td colspan="2" class="text-center py-6 text-gray-400 font-bold">No dictionary words found</td></tr>';
+            } else {
+                sortedCounts.forEach(([word, count]) => {
+                    let badgeClass = "bg-gray-100 text-gray-700";
+                    if (wordCategories.Symptom.includes(word)) badgeClass = "bg-rose-100 text-rose-800";
+                    else if (wordCategories.Component.includes(word)) badgeClass = "bg-indigo-100 text-indigo-800";
+                    summaryHtml += `
+                        <tr class="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
+                            <td class="px-4 py-2 font-bold text-xs"><span class="${badgeClass} px-2 py-0.5 rounded shadow-sm">${escapeHTML(word)}</span></td>
+                            <td class="px-4 py-2 text-center font-bold text-gray-700 text-xs">${count}</td>
+                        </tr>
+                    `;
+                });
+            }
+            const summaryTbody = document.getElementById('audit-summary-tbody');
+            if(summaryTbody) summaryTbody.innerHTML = summaryHtml;
+
+            let tbodyHtml = '';
+            auditRows.sort((a,b) => (b.symptoms.length + b.components.length) - (a.symptoms.length + a.components.length));
+            
+            auditRows.slice(0, 1000).forEach((r, idx) => {
+                let highlightedText = escapeHTML(r.text);
+                const allFound = [...r.symptoms, ...r.components];
+                allFound.forEach(item => {
+                    const safeItem = escapeHTML(item.original);
+                    const regex = new RegExp(`\\b${safeItem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+                    const bgClass = item.score === 100 ? 'bg-yellow-200' : 'bg-orange-400';
+                    highlightedText = highlightedText.replace(regex, `<span class="${bgClass} text-black px-1 rounded font-bold">${safeItem}</span>`);
+                });
+
+                const renderCell = (arr, type) => {
+                    if (arr.length === 0) return '<div class="text-center text-gray-400">-</div>';
+                    return arr.map(item => {
+                        let scoreClass = item.score === 100 ? 'text-emerald-600' : 'text-amber-500';
+                        let textColor = type === 'symp' ? 'text-rose-700' : 'text-indigo-700';
+                        return `<div class="mb-1.5 flex items-center justify-between bg-white px-2 py-1 rounded border shadow-sm">
+                                    <span class="font-bold ${textColor}">${escapeHTML(item.master)}</span> 
+                                    <span class="${scoreClass} font-bold text-[10px] bg-gray-50 px-1.5 py-0.5 rounded ml-2">${item.score}%</span>
+                                </div>`;
+                    }).join('');
+                };
+
+                const renderL2SummaryCell = (arr) => {
+                    if (!arr || arr.length === 0) return '<div class="text-center text-gray-400">-</div>';
+                    return arr.map(text => {
+                        return `<div class="mb-1.5 flex items-center justify-center bg-white px-2 py-1.5 rounded border border-teal-200 shadow-sm">
+                                    <span class="font-bold text-teal-700 text-[10px] text-center uppercase tracking-wide">${escapeHTML(text)}</span> 
+                                </div>`;
+                    }).join('');
+                };
+
+                tbodyHtml += `
+                    <tr class="hover:bg-gray-50 transition-colors border-b border-gray-100">
+                        <td class="px-4 py-3 font-bold text-xs text-gray-500 text-center">${idx + 1}</td>
+                        <td class="px-4 py-3 font-bold text-xs text-gray-700">${escapeHTML(r.acreg)}</td>
+                        <td class="px-4 py-3 text-gray-500 text-xs truncate max-w-[100px]" title="${escapeHTML(r.ata)}">${escapeHTML(r.ata)}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-600">${escapeHTML(r.date)}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-600">${escapeHTML(r.noti)}</td>
+                        <td class="px-4 py-3 break-words min-w-[250px] max-w-[400px] leading-relaxed text-xs text-gray-700">${highlightedText}</td>
+                        <td class="px-3 py-2 bg-rose-50/30 border-l border-rose-100 align-top w-32">${renderCell(r.symptoms, 'symp')}</td>
+                        <td class="px-3 py-2 bg-indigo-50/30 border-l border-indigo-100 align-top w-32">${renderCell(r.components, 'comp')}</td>
+                        <td class="px-3 py-2 bg-teal-50/30 border-l border-teal-100 align-top w-40">${renderL2SummaryCell(r.l2Summaries)}</td>
+                    </tr>
+                `;
+            });
+            const auditTbody = document.getElementById('audit-tbody');
+            if(auditTbody) auditTbody.innerHTML = tbodyHtml;
+            window.currentAuditData = auditRows;
+        }
+
+        function exportAuditData() {
+            if (!window.currentAuditData || window.currentAuditData.length === 0) {
+                alert("No audit data to export.");
+                return;
+            }
+            const formatExport = (arr) => {
+                if(arr.length === 0) return '-';
+                return arr.map(item => `${item.master || item.text} (${item.score}%)`).join(', ');
+            };
+
+            const exportData = window.currentAuditData.map((r, idx) => ({
+                'No.': idx + 1,
+                'AC REG': r.acreg,
+                'Main ATA': r.ata,
+                'Complaint Date': r.date,
+                'Notification': r.noti,
+                'Original Complaint Text': r.text,
+                'Symptom (Match %)': formatExport(r.symptoms),
+                'Component (Match %)': formatExport(r.components),
+                'L2 Standard Summary': r.l2Summaries && r.l2Summaries.length > 0 ? r.l2Summaries.join(', ') : '-'
+            }));
+            exportToExcel(exportData, 'Text_Mining_Audit_Trail');
+        }
+
+        function getFleetInfo(reg) {
+            if (!reg) return { model: "Unknown", type: "Unknown" };
+            reg = reg.toUpperCase().trim();
+            const txSeries = ["HS-TXA", "HS-TXB", "HS-TXC", "HS-TXD", "HS-TXE", "HS-TXF", "HS-TXG", "HS-TXH", "HS-TXJ", "HS-TXK", "HS-TXL", "HS-TXM", "HS-TXN", "HS-TXO", "HS-TXP", "HS-TXQ", "HS-TXR", "HS-TXS", "HS-TXT", "HS-TXU"];
+            if (txSeries.includes(reg)) return { model: "A320-232", type: "A320" };
+            const toSeries = ["HS-TOA", "HS-TOB", "HS-TOC", "HS-TOD", "HS-TOE", "HS-TOF", "HS-TOG", "HS-TOH", "HS-TOI", "HS-TOJ", "HS-TOK", "HS-TOL"];
+            if (toSeries.includes(reg)) return { model: "A321-251NX", type: "A321" }; 
+            const teSeries = ["HS-TEN", "HS-TEO", "HS-TEP", "HS-TEV", "HS-TEW", "HS-TEX"];
+            if (teSeries.includes(reg)) return { model: "A330-343", type: "A330" };
+            if (reg.startsWith("HS-TH")) return { model: "A350-941", type: "A350" };
+            const tjSeries = ["HS-TJR", "HS-TJS", "HS-TJT", "HS-TJV", "HS-TJW"];
+            if (tjSeries.includes(reg)) return { model: "B777-200ER", type: "B777" };
+            if (reg >= "HS-TKK" && reg <= "HS-TKR") return { model: "B777-300ER", type: "B777" };
+            if (reg >= "HS-TKU" && reg <= "HS-TKZ") return { model: "B777-300ER", type: "B777" };
+            if (["HS-TTA", "HS-TTB", "HS-TTC"].includes(reg)) return { model: "B777-300ER", type: "B777" };
+            if (reg >= "HS-TQA" && reg <= "HS-TQF") return { model: "B787-8", type: "B787" };
+            if (reg >= "HS-TWA" && reg <= "HS-TWE") return { model: "B787-9", type: "B787" };
+            return { model: "Unknown", type: "Unknown" };
+        }
+
+        function getMaintenanceStatus(text) {
+            if (!text) return 'Other';
+            const t = text.toUpperCase();
+            if (t.includes('DEFERRED')) return 'Defer';
+            if (t.includes('HARD FAULT') || t.includes('REPLACEMENT') || t.includes('SOFT FAULT') || t.includes('ADJUST') || t.includes('CLEANING') || t.includes('SERVICE')) return 'Fix';
+            if (t.includes('INSP') || t.includes('TEST') || t.includes('NFF') || t.includes('RESET')) return 'Inspect';
+            if (t.includes('INFO') || t.includes('NOTE')) return 'Info';
+            return 'Other';
+        }
+        
+        function getStatusBadge(status) {
+            let colorClass = "bg-gray-100 text-gray-800";
+            if (status === 'Defer') colorClass = "bg-yellow-100 text-yellow-800";
+            else if (status === 'Fix') colorClass = "bg-red-100 text-red-800";
+            else if (status === 'Inspect') colorClass = "bg-blue-100 text-blue-800";
+            return `<span class="${colorClass} text-xs font-medium mr-2 px-2.5 py-0.5 rounded border border-${colorClass.split('-')[1]}-400">${status}</span>`;
+        }
+
+        function analyzeData() {
+            processedData = rawData.map(row => {
+                const date = parseDate(row['Complaint Date']);
+                let q = "Unknown";
+                if(date) { q = `Q${Math.ceil((date.getMonth() + 1) / 3)}`; }
+                const ataInfo = parseATA(row['Main ATA']);
+                const fleetInfo = getFleetInfo(row['ACREG']);
+                
+                let fullComplaint = row['Complaint Text'] || "";
+                let fullActivity = row['Activity Text'] || "";
+                let techInfo = "";
+                let pureComplaint = fullComplaint;
+                let pureActivity = fullActivity;
+                let activityDetails = ""; 
+                
+                const cleanRegex = /(Name\s*:|Auth\s*no\.?\s*:|Created\s*by\s*:|Action\s*STA\s*:|\-{3,})[\s\S]*/i;
+                
+                const compSplitMatch = fullComplaint.match(cleanRegex);
+                if (compSplitMatch) {
+                    techInfo = compSplitMatch[0].trim();
+                    pureComplaint = fullComplaint.substring(0, compSplitMatch.index).trim();
+                }
+
+                const actSplitMatch = fullActivity.match(cleanRegex);
+                if (actSplitMatch) {
+                    pureActivity = fullActivity.substring(0, actSplitMatch.index).trim();
+                    let rawExtracted = actSplitMatch[0].trim();
+                    rawExtracted = rawExtracted
+                        .replace(/(Auth\s*no\.?\s*:)/gi, '\n$1')
+                        .replace(/(Action\s*STA\s*:)/gi, '\n$1')
+                        .replace(/(DATE\s*\&\s*TIME\s*:)/gi, '\n$1')
+                        .replace(/(Name\s*:)/gi, '\n$1')
+                        .replace(/(Created\s*by\s*:)/gi, '\n$1');
+                    activityDetails = rawExtracted.replace(/\n\s+/g, '\n').trim().replace(/^\n+/, '');
+                }
+
+                const maintStatus = getMaintenanceStatus(row['Activity Code Text']);
+
+                let finalTechInfo = techInfo || row['Technician Info'] || "";
+                finalTechInfo = finalTechInfo
+                    .replace(/\s*-{3,}\s*/g, '\n')
+                    .replace(/(Created\s*by\s*:)/gi, '\n$1')
+                    .replace(/(\S)\s*(Auth\s*no\.?\s*:)/gi, '$1  $2')
+                    .replace(/\n\s+/g, '\n')
+                    .replace(/\n+/g, '\n')
+                    .trim();
+
+                let newRow = {};
+                for (let key in row) {
+                    if (key === 'Complaint Text') {
+                        newRow['Complaint Text'] = pureComplaint;
+                    } else if (key === 'Activity Text') {
+                        newRow['Activity Text'] = pureActivity;
+                        newRow['Activity Text (Detail)'] = activityDetails;
+                    } else if (key === 'Complaint Date') {
+                        newRow['Complaint Date'] = date ? formatDate(date) : row['Complaint Date'];
+                    } else if (key === 'Technician Info') {
+                        newRow['Technician Info'] = finalTechInfo;
+                    } else {
+                        newRow[key] = row[key];
+                    }
+                }
+                
+                if (!('Activity Text' in row)) {
+                    newRow['Activity Text'] = pureActivity;
+                    newRow['Activity Text (Detail)'] = activityDetails;
+                }
+                if (!('Technician Info' in row)) {
+                    newRow['Technician Info'] = finalTechInfo;
+                }
+
+                newRow['Maintenance_Status'] = maintStatus;
+                newRow.pDate = date;
+                newRow.quarter = q;
+                newRow.cleanComp = cleanText(pureComplaint);
+                newRow.category = categorize(row, ataInfo.code);
+                newRow.ataCode = ataInfo.code;
+                newRow.ataLabel = ataInfo.label;
+                newRow.acModel = fleetInfo.model;
+                newRow.acType = fleetInfo.type;
+
+                return newRow;
+            });
+
+            runFuzzyMatching();
+
+            processedData.forEach(row => {
+                if (row.category === 'Tech') {
+                    const concepts = extractConcepts(row.cleanComp);
+                    const l2Summaries = evaluateL2Summaries(concepts);
+                    row.l2SummariesArr = l2Summaries;
+                    row.l2SummaryText = l2Summaries.length > 0 ? l2Summaries.join(', ') : 'General / Uncategorized';
+                    row.extractedConcepts = concepts; 
+                } else {
+                    row.l2SummariesArr = [];
+                    row.l2SummaryText = 'General / Uncategorized';
+                    row.extractedConcepts = { wordsSet: new Set(), foundSymp: [], foundComp: [] };
+                }
+            });
+
+            processedData.sort((a,b) => (a.pDate && b.pDate) ? a.pDate - b.pDate : 0);
+            initFilters();
+            initColumnSelector(); 
+            applyFilters(); 
+            
+            if (!history.state) {
+                history.replaceState({ view: 'overview', isDrilldown: false }, '', '#overview');
+            }
+        }
+
+        function drilldownView(subset, titleText) {
+            history.pushState({ view: 'rawdata', isDrilldown: true }, '', '#drilldown');
+            switchTab('rawdata', true);
+            currentPage = 1; 
+            renderRawTable(subset);
+            document.getElementById('raw-count').innerHTML = `<span class="text-blue-600 font-bold"><i class="fa-solid fa-filter mr-1"></i>Drilldown: ${escapeHTML(titleText)} (${subset.length} rows)</span> <button onclick="history.back()" class="ml-2 text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-700"><i class="fa-solid fa-arrow-left mr-1"></i>Go Back</button>`;
+        }
+        
+        function searchTable() {
+            const query = document.getElementById('table-search').value.toLowerCase();
+            currentPage = 1; 
+            if (!query) {
+                renderRawTable(currentFilteredData);
+                return;
+            }
+            const searchResults = currentFilteredData.filter(row => {
+                return Object.values(row).some(val => 
+                    String(val).toLowerCase().includes(query)
+                );
+            });
+            renderRawTable(searchResults, query); 
+        }
+
+        function toggleDropdown(id, event) {
+            event.stopPropagation();
+            const el = document.getElementById(id);
+            if (activeDropdown && activeDropdown !== el) activeDropdown.classList.remove('show');
+            el.classList.toggle('show');
+            activeDropdown = el.classList.contains('show') ? el : null;
+        }
+
+        function closeAllDropdowns(event) {
+            if (activeDropdown && !event.target.closest('.group')) {
+                activeDropdown.classList.remove('show');
+                activeDropdown = null;
+            }
+        }
+
+        function initFilters() {
+            const sets = { 'ms-type': new Set(), 'ms-model': new Set(), 'ms-reg': new Set(), 'ms-ata': new Set(), 'ms-quarter': new Set(), 'ms-cat': new Set(), 'ms-status': new Set() };
+            processedData.forEach(d => {
+                if(d.acType) sets['ms-type'].add(d.acType);
+                if(d.acModel) sets['ms-model'].add(d.acModel);
+                if(d.ACREG) sets['ms-reg'].add(d.ACREG);
+                if(d.ataLabel) sets['ms-ata'].add(d.ataLabel);
+                if(d.quarter) sets['ms-quarter'].add(d.quarter);
+                if(d.category) sets['ms-cat'].add(d.category);
+                if(d.Maintenance_Status) sets['ms-status'].add(d.Maintenance_Status);
+            });
+            Object.keys(sets).forEach(id => renderMultiSelect(id, sets[id]));
+        }
+
+        function renderMultiSelect(id, optionsSet) {
+            const container = document.getElementById(id);
+            const sortedOptions = [...optionsSet].sort();
+            let html = `<div class="ms-search"><input type="text" placeholder="Search..." class="w-full text-xs border p-1 rounded" onkeyup="filterOptions(this)"></div>`;
+            html += `<div class="ms-option" onclick="toggleSelectAll('${id}', event)"><input type="checkbox" class="ms-checkbox" value="ALL"><span class="text-sm font-bold text-blue-600">Select All</span></div>`;
+            sortedOptions.forEach(opt => {
+                html += `<div class="ms-option" onclick="toggleOption(this, '${id}', event)"><input type="checkbox" class="ms-checkbox" value="${escapeHTML(opt)}"><span class="text-sm">${escapeHTML(opt)}</span></div>`;
+            });
+            container.innerHTML = html;
+            updateButtonLabel(id);
+        }
+
+        function filterOptions(input) {
+            const filter = input.value.toUpperCase();
+            const container = input.closest('.ms-dropdown');
+            container.querySelectorAll('.ms-option').forEach((item, idx) => {
+                if(idx === 0) return;
+                const text = item.innerText.toUpperCase();
+                item.style.display = text.indexOf(filter) > -1 ? "" : "none";
+            });
+        }
+
+        function toggleSelectAll(id, event) {
+            if (event && event.target.tagName === 'INPUT') event.stopPropagation();
+            const container = document.getElementById(id);
+            const allCheckbox = container.querySelector('input[value="ALL"]');
+            if (event && event.target !== allCheckbox) allCheckbox.checked = !allCheckbox.checked;
+            const newState = allCheckbox.checked;
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:not([value="ALL"])');
+            checkboxes.forEach(cb => {
+                if(cb.closest('.ms-option').style.display !== 'none') cb.checked = newState;
+            });
+            updateButtonLabel(id);
+            applyFilters();
+            if (event) event.stopPropagation();
+        }
+
+        function toggleOption(div, id, event) {
+            const checkbox = div.querySelector('input');
+            const isCheckbox = event.target === checkbox;
+            if (!isCheckbox) checkbox.checked = !checkbox.checked;
+            const container = document.getElementById(id);
+            const allCheckbox = container.querySelector('input[value="ALL"]');
+            const allOptions = container.querySelectorAll('input[type="checkbox"]:not([value="ALL"])');
+            const allChecked = Array.from(allOptions).every(cb => cb.checked);
+            allCheckbox.checked = allChecked;
+            updateButtonLabel(id);
+            applyFilters();
+        }
+
+        function updateButtonLabel(id) {
+            const container = document.getElementById(id);
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:not([value="ALL"]):checked');
+            const total = container.querySelectorAll('input[type="checkbox"]:not([value="ALL"])').length;
+            const btnId = id.replace('ms-', 'btn-');
+            const btnSpan = document.querySelector(`#${btnId} span`);
+            
+            if (checkboxes.length === 0 || checkboxes.length === total) {
+                btnSpan.innerText = "All"; 
+            } else if (checkboxes.length === 1) {
+                btnSpan.innerText = checkboxes[0].value;
+            } else {
+                btnSpan.innerText = `${checkboxes.length} Selected`;
+            }
+        }
+
+        function getSelectedValues(id) {
+            const container = document.getElementById(id);
+            return new Set(Array.from(container.querySelectorAll('input[type="checkbox"]:not([value="ALL"]):checked')).map(cb => cb.value));
+        }
+
+        function resetFilters() {
+            ['ms-type', 'ms-model', 'ms-reg', 'ms-ata', 'ms-quarter', 'ms-cat', 'ms-status'].forEach(id => {
+                const container = document.getElementById(id);
+                container.querySelectorAll('input').forEach(cb => cb.checked = false); 
+                container.querySelectorAll('.ms-option').forEach(opt => opt.style.display = ''); 
+                updateButtonLabel(id);
+            });
+            ['filter-date-start', 'filter-date-end'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('table-search').value = '';
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const sTypes = getSelectedValues('ms-type');
+            const sModels = getSelectedValues('ms-model');
+            const sRegs = getSelectedValues('ms-reg');
+            const sAtas = getSelectedValues('ms-ata');
+            const sQuarters = getSelectedValues('ms-quarter');
+            const sCats = getSelectedValues('ms-cat');
+            const sStatus = getSelectedValues('ms-status');
+            
+            let dStart = null;
+            if (document.getElementById('filter-date-start').value) {
+                dStart = new Date(document.getElementById('filter-date-start').value);
+                dStart.setHours(0,0,0,0);
+            }
+            
+            let dEnd = null;
+            if (document.getElementById('filter-date-end').value) {
+                dEnd = new Date(document.getElementById('filter-date-end').value);
+                dEnd.setHours(23,59,59,999);
+            }
+
+            currentFilteredData = processedData.filter(d => {
+                if (sTypes.size > 0 && !sTypes.has(d.acType)) return false;
+                if (sModels.size > 0 && !sModels.has(d.acModel)) return false;
+                if (sRegs.size > 0 && !sRegs.has(d.ACREG)) return false;
+                if (sAtas.size > 0 && !sAtas.has(d.ataLabel)) return false;
+                if (sQuarters.size > 0 && !sQuarters.has(d.quarter)) return false;
+                if (sCats.size > 0 && !sCats.has(d.category)) return false;
+                if (sStatus.size > 0 && !sStatus.has(d.Maintenance_Status)) return false;
+                
+                if (d.pDate) {
+                    if (dStart && d.pDate < dStart) return false;
+                    if (dEnd && d.pDate > dEnd) return false;
+                }
+                return true;
+            });
+
+            if(document.getElementById('table-search').value) {
+                searchTable();
+            } else {
+                updateDashboard(currentFilteredData);
+            }
+        }
+
+        function updateDashboard(data) {
+            renderKPIs(data);
+            renderTrend(data); 
+            renderCategoryChart(data); 
+            renderStatusChart(data);
+            renderFleetHealth(data);
+            renderFaultCodes(data);
+            runNgramAnalysis(data);
+            renderChronic(data);
+            renderMatrix(data); 
+            renderProblemStatement(data);
+            renderOriginalComplaintSummary(data); 
+            renderL2ComplaintSummary(data); 
+            renderRawTable(data);
+            renderTop5Cards(data); 
+        }
+
+        function renderOriginalComplaintSummary(data) {
+            const techData = data.filter(d => d.category === 'Tech');
+            const summaryData = {};
+
+            techData.forEach(d => {
+                const ata = d.ataLabel && d.ataLabel !== "Unknown" ? d.ataLabel : "Unknown ATA";
+                const model = d.acModel || "Unknown";
+                const reg = d.ACREG || "Unknown";
+                
+                const compDate = d['Complaint Date'] ? `<span class="text-gray-400 text-xs mr-2">[${escapeHTML(d['Complaint Date'])}]</span>` : "";
+                const compHtml = compDate + escapeHTML(d.cleanComp || d['Complaint Text'] || "-");
+                
+                const notiText = escapeHTML(d['Notification'] || "-");
+                const actText = escapeHTML(d['Activity Text'] || "-");
+                const actCode = escapeHTML(d['Activity Code Text'] || "-");
+
+                if (!summaryData[ata]) summaryData[ata] = {};
+                if (!summaryData[ata][model]) summaryData[ata][model] = {};
+                if (!summaryData[ata][model][reg]) summaryData[ata][model][reg] = [];
+
+                summaryData[ata][model][reg].push({
+                    displayHtml: compHtml,
+                    notification: notiText,
+                    activityText: actText,
+                    activityCode: actCode
+                });
+            });
+
+            let html = '';
+            const sortedATAs = Object.keys(summaryData).sort();
+
+            sortedATAs.forEach(ata => {
+                html += `<div class="mb-8">`;
+                html += `<h3 class="font-bold text-lg text-slate-800 mb-3 border-l-4 border-blue-500 pl-3">${escapeHTML(ata)}</h3>`;
+                html += `<div class="overflow-hidden bg-white rounded-lg shadow-sm border border-gray-200">`;
+                html += `<table class="w-full text-sm text-left">`;
+                html += `<thead class="bg-slate-50 text-gray-700 uppercase text-xs border-b border-gray-200">
+                            <tr>
+                                <th class="px-4 py-3 border-r border-gray-200 w-1/5">Aircraft Model</th>
+                                <th class="px-4 py-3 border-r border-gray-200 w-1/5">ACREG</th>
+                                <th class="px-4 py-3 w-3/5">Complaint Text</th>
+                            </tr>
+                         </thead>`;
+                html += `<tbody class="divide-y divide-gray-100">`;
+
+                const models = Object.keys(summaryData[ata]).sort();
+                models.forEach(model => {
+                    const regs = Object.keys(summaryData[ata][model]).sort();
+                    
+                    let modelRowCount = 0;
+                    regs.forEach(reg => { modelRowCount += Math.max(1, summaryData[ata][model][reg].length); });
+
+                    regs.forEach((reg, regIdx) => {
+                        const complaints = summaryData[ata][model][reg];
+                        const regRowCount = Math.max(1, complaints.length);
+
+                        complaints.forEach((compObj, compIdx) => {
+                            html += `<tr class="hover:bg-blue-50/30 transition-colors">`;
+                            if (regIdx === 0 && compIdx === 0) {
+                                html += `<td class="px-4 py-3 border-r border-b border-gray-200 font-bold text-gray-800 align-top bg-white" rowspan="${modelRowCount}">${escapeHTML(model)}</td>`;
+                            }
+                            if (compIdx === 0) {
+                                html += `<td class="px-4 py-3 border-r border-b border-gray-200 font-semibold text-blue-700 align-top bg-white" rowspan="${regRowCount}">${escapeHTML(reg)}</td>`;
+                            }
+                            
+                            const safeNoti = String(compObj.notification || "-").replace(/"/g, '&quot;');
+                            const safeActText = String(compObj.activityText || "-").replace(/"/g, '&quot;');
+                            const safeActCode = String(compObj.activityCode || "-").replace(/"/g, '&quot;');
+                            
+                            html += `<td class="px-4 py-3 text-gray-700 border-b border-gray-100 leading-relaxed cursor-pointer relative group hover:bg-blue-50" 
+                                         data-noti="${safeNoti}" data-act="${safeActText}" data-code="${safeActCode}"
+                                         onclick="showActionTooltip(event, this)">
+                                         <div class="w-full truncate max-w-2xl text-wrap" style="white-space: normal;">${compObj.displayHtml}</div>
+                                     </td>`;
+                            html += `</tr>`;
+                        });
+                    });
+                });
+                html += `</tbody></table></div></div>`;
+            });
+
+            if (sortedATAs.length === 0) {
+                html = `<div class="p-8 text-center text-gray-400 font-bold flex flex-col items-center"><i class="fa-solid fa-folder-open text-4xl mb-3 opacity-50"></i>No technical data available for summary.</div>`;
+            }
+            document.getElementById('summary-original-content').innerHTML = html;
+        }
+
+        // --- NEW: Expandable Table Function ---
+        window.toggleL2Breakdown = function(targetId, btnEl) {
+            const target = document.getElementById(targetId);
+            const icon = btnEl.querySelector('i');
+            if (target.classList.contains('hidden')) {
+                target.classList.remove('hidden');
+                icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+                btnEl.classList.add('bg-blue-50', 'text-blue-700', 'border-blue-300');
+                btnEl.classList.remove('bg-white', 'text-gray-600', 'border-gray-300');
+            } else {
+                target.classList.add('hidden');
+                icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+                btnEl.classList.remove('bg-blue-50', 'text-blue-700', 'border-blue-300');
+                btnEl.classList.add('bg-white', 'text-gray-600', 'border-gray-300');
+            }
+        };
+
+        function renderL2ComplaintSummary(data) {
+            const techData = data.filter(d => d.category === 'Tech');
+            const summaryData = {};
+            const ataModelTotals = {}; // เก็บยอดรวมปัญหาทั้งหมดแยกตาม ATA+Model
+
+            techData.forEach(d => {
+                const ata = d.ataLabel && d.ataLabel !== "Unknown" ? d.ataLabel : "Unknown ATA";
+                const model = d.acModel || "Unknown";
+                const l2Text = d.l2SummaryText; 
+                const reg = d.ACREG || "Unknown";
+
+                if (!summaryData[ata]) summaryData[ata] = {};
+                if (!summaryData[ata][model]) {
+                    summaryData[ata][model] = {};
+                    ataModelTotals[`${ata}|${model}`] = 0;
+                }
+                if (!summaryData[ata][model][l2Text]) {
+                    summaryData[ata][model][l2Text] = { total: 0, regs: {} };
+                }
+
+                // บันทึกตัวเลข
+                summaryData[ata][model][l2Text].total++;
+                summaryData[ata][model][l2Text].regs[reg] = (summaryData[ata][model][l2Text].regs[reg] || 0) + 1;
+                ataModelTotals[`${ata}|${model}`]++;
+            });
+
+            let html = '';
+            const sortedATAs = Object.keys(summaryData).sort();
+            let uniqueIdCounter = 0;
+
+            sortedATAs.forEach(ata => {
+                html += `<div class="mb-8">`;
+                html += `<h3 class="font-bold text-lg text-teal-800 mb-3 border-l-4 border-teal-500 pl-3">${escapeHTML(ata)}</h3>`;
+                html += `<div class="overflow-hidden bg-white rounded-lg shadow-sm border border-gray-200">`;
+                html += `<table class="w-full text-sm text-left">`;
+                html += `<thead class="bg-slate-50 text-gray-700 uppercase text-[11px] border-b border-gray-200 tracking-wider">
+                            <tr>
+                                <th class="px-4 py-3 border-r border-gray-200 w-1/3">Standard Issue (L2 Summary)</th>
+                                <th class="px-4 py-3 border-r border-gray-200 w-1/3 text-center">Frequency (% of System)</th>
+                                <th class="px-4 py-3 border-r border-gray-200 w-24 text-center">Total Count</th>
+                                <th class="px-4 py-3 w-32 text-center">Aircraft Breakdown</th>
+                            </tr>
+                         </thead>`;
+                html += `<tbody class="divide-y divide-gray-100">`;
+
+                const models = Object.keys(summaryData[ata]).sort();
+                models.forEach(model => {
+                    const totalModelAta = ataModelTotals[`${ata}|${model}`];
+                    
+                    // หัวข้อแยกตาม Model (เพื่อไม่ต้องใช้ rowspan ให้ดูง่ายขึ้น)
+                    html += `<tr class="bg-slate-100/80 border-b border-gray-200">
+                                <td colspan="4" class="px-4 py-2 font-bold text-slate-700 text-xs">
+                                    <i class="fa-solid fa-plane mr-2 text-slate-400"></i>${escapeHTML(model)} 
+                                    <span class="text-slate-500 font-normal ml-2">(Total Technical Issues: ${totalModelAta})</span>
+                                </td>
+                             </tr>`;
+
+                    // เรียงตามจำนวนปัญหาเกิดบ่อยสุด
+                    const l2Issues = Object.keys(summaryData[ata][model]).sort((a,b) => {
+                        if (a === 'General / Uncategorized') return 1;
+                        if (b === 'General / Uncategorized') return -1;
+                        return summaryData[ata][model][b].total - summaryData[ata][model][a].total;
+                    });
+                    
+                    l2Issues.forEach(l2 => {
+                        uniqueIdCounter++;
+                        const l2Total = summaryData[ata][model][l2].total;
+                        const pctAta = (l2Total / totalModelAta) * 100;
+                        
+                        const isOther = l2 === 'General / Uncategorized';
+                        const textClass = isOther ? "font-bold text-gray-500 cursor-pointer hover:text-blue-700 hover:underline transition-colors" : "font-bold text-blue-700 cursor-pointer hover:underline";
+                        const barColor = isOther ? 'bg-gray-400' : (pctAta >= 50 ? 'bg-red-500' : (pctAta >= 20 ? 'bg-amber-400' : 'bg-teal-500'));
+                        
+                        const safeAta = String(ata).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                        const safeModel = String(model).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                        const safeL2 = String(l2).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                        const drillAction = `onclick="drilldownL2Summary('${safeAta}', '${safeModel}', '${safeL2}')"`;
+                        
+                        // แถวหลักของ L2 Summary
+                        html += `<tr class="hover:bg-teal-50/30 transition-colors">`;
+                        
+                        html += `<td class="px-4 py-3 border-r border-b border-gray-200 align-middle">
+                                    <span class="${textClass} flex items-start" ${drillAction} title="Click to view raw data records">
+                                        ${!isOther ? '<i class="fa-solid fa-bolt mr-2 mt-1 text-rose-500"></i>' : '<i class="fa-solid fa-list mr-2 mt-1 text-gray-400"></i>'}
+                                        <span style="white-space: normal; word-break: break-word;">${escapeHTML(l2)}</span>
+                                    </span>
+                                 </td>`;
+                        
+                        // % Data Bar
+                        html += `<td class="px-4 py-3 border-r border-b border-gray-200 align-middle">
+                                    <div class="flex items-center">
+                                        <span class="w-12 text-right mr-3 text-xs font-bold text-gray-700">${pctAta.toFixed(1)}%</span>
+                                        <div class="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden shadow-inner">
+                                            <div class="${barColor} h-2 rounded-full transition-all duration-500" style="width: ${pctAta}%"></div>
+                                        </div>
+                                    </div>
+                                 </td>`;
+
+                        html += `<td class="px-4 py-3 border-r border-b border-gray-200 text-center font-bold text-gray-800 align-middle text-sm">${l2Total}</td>`;
+                        
+                        // ปุ่มกางตาราง
+                        html += `<td class="px-4 py-3 border-b border-gray-200 text-center align-middle">
+                                    <button onclick="toggleL2Breakdown('l2-sub-${uniqueIdCounter}', this)" class="text-[10px] uppercase font-bold bg-white hover:bg-blue-50 hover:text-blue-700 text-gray-600 px-3 py-1.5 rounded border border-gray-300 shadow-sm transition-colors flex items-center justify-center w-full mx-auto">
+                                        <i class="fa-solid fa-chevron-down mr-1.5"></i> Breakdown
+                                    </button>
+                                 </td>`;
+                        html += `</tr>`;
+
+                        // แถวซ่อน (Breakdown รายลำเครื่องบิน)
+                        html += `<tr id="l2-sub-${uniqueIdCounter}" class="hidden bg-slate-50 border-b border-gray-200 shadow-inner">
+                                    <td colspan="4" class="p-0">
+                                        <div class="px-6 py-3 border-l-4 border-blue-400">
+                                            <div class="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider"><i class="fa-solid fa-chart-pie mr-1"></i>Affected Aircraft Breakdown (% of this Issue)</div>
+                                            <table class="w-full text-xs">
+                                                <tbody>`;
+                        
+                        const sortedRegs = Object.entries(summaryData[ata][model][l2].regs).sort((a,b) => b[1] - a[1]);
+                        sortedRegs.forEach(([r, rCount]) => {
+                            const pctReg = (rCount / l2Total) * 100;
+                            html += `<tr class="hover:bg-slate-100 transition-colors">
+                                        <td class="py-1.5 w-1/4 pl-2 font-semibold text-blue-800"><i class="fa-solid fa-caret-right text-blue-300 mr-2"></i>${escapeHTML(r)}</td>
+                                        <td class="py-1.5 w-1/2">
+                                            <div class="flex items-center">
+                                                <span class="w-10 text-right mr-3 text-[12px] font-bold text-gray-500">${pctReg.toFixed(1)}%</span>
+                                                <div class="flex-1 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                                    <div class="bg-blue-400 h-1.5 rounded-full" style="width: ${pctReg}%"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="py-1.5 text-right pr-4 font-bold text-gray-600">${rCount} reports</td>
+                                     </tr>`;
+                        });
+
+                        html += `               </tbody>
+                                            </table>
+                                        </div>
+                                    </td>
+                                 </tr>`;
+                    });
+                });
+
+                html += `</tbody></table></div></div>`;
+            });
+
+            if (sortedATAs.length === 0) {
+                html = `<div class="p-8 text-center text-gray-400 font-bold flex flex-col items-center"><i class="fa-solid fa-folder-open text-4xl mb-3 opacity-50"></i>No technical data available for summary.</div>`;
+            }
+
+            document.getElementById('summary-l2-content').innerHTML = html;
+        }
+
+        function drilldownL2Summary(ata, model, l2Text) {
+            const subset = currentFilteredData.filter(d => 
+                d.ataLabel === ata && 
+                d.acModel === model && 
+                d.l2SummaryText === l2Text && 
+                d.category === 'Tech'
+            );
+            drilldownView(subset, `L2 Summary: ${model} - ${l2Text}`);
+        }
+
+        function exportOriginalSummaryData() {
+            const techData = currentFilteredData.filter(d => d.category === 'Tech');
+            if (techData.length === 0) { alert("No data to export!"); return; }
+            
+            const exportData = techData.map(d => ({
+                'ATA Chapter': d.ataLabel,
+                'Aircraft Model': d.acModel,
+                'Registration': d.ACREG,
+                'Complaint Date': d['Complaint Date'],
+                'Complaint Text': d.cleanComp || d['Complaint Text']
+            })).sort((a,b) => {
+                if (a['ATA Chapter'] !== b['ATA Chapter']) return a['ATA Chapter'] > b['ATA Chapter'] ? 1 : -1;
+                if (a['Aircraft Model'] !== b['Aircraft Model']) return a['Aircraft Model'] > b['Aircraft Model'] ? 1 : -1;
+                return a['Registration'] > b['Registration'] ? 1 : -1;
+            });
+            exportToExcel(exportData, 'Complaint_Summary_Raw_Grouped');
+        }
+
+        function exportL2SummaryData() {
+            const techData = currentFilteredData.filter(d => d.category === 'Tech');
+            if (techData.length === 0) { alert("No data to export!"); return; }
+            
+            const summaryData = {};
+            const ataModelTotals = {};
+
+            techData.forEach(d => {
+                const ata = d.ataLabel && d.ataLabel !== "Unknown" ? d.ataLabel : "Unknown ATA";
+                const model = d.acModel || "Unknown";
+                const l2Text = d.l2SummaryText;
+                const reg = d.ACREG || "Unknown";
+
+                if (!summaryData[ata]) summaryData[ata] = {};
+                if (!summaryData[ata][model]) {
+                    summaryData[ata][model] = {};
+                    ataModelTotals[`${ata}|${model}`] = 0;
+                }
+                if (!summaryData[ata][model][l2Text]) {
+                    summaryData[ata][model][l2Text] = { total: 0, regs: {} };
+                }
+
+                summaryData[ata][model][l2Text].total++;
+                summaryData[ata][model][l2Text].regs[reg] = (summaryData[ata][model][l2Text].regs[reg] || 0) + 1;
+                ataModelTotals[`${ata}|${model}`]++;
+            });
+
+            const exportArr = [];
+            Object.keys(summaryData).sort().forEach(ata => {
+                Object.keys(summaryData[ata]).sort().forEach(model => {
+                    const totalATA = ataModelTotals[`${ata}|${model}`];
+                    Object.keys(summaryData[ata][model]).sort((a,b) => {
+                        if (a === 'General / Uncategorized') return 1;
+                        if (b === 'General / Uncategorized') return -1;
+                        return summaryData[ata][model][b].total - summaryData[ata][model][a].total;
+                    }).forEach(l2 => {
+                        const l2Total = summaryData[ata][model][l2].total;
+                        const pctAta = ((l2Total / totalATA) * 100).toFixed(2) + '%';
+                        
+                        const regsArr = Object.entries(summaryData[ata][model][l2].regs)
+                            .sort((a,b) => b[1] - a[1])
+                            .map(([r, c]) => `${r} (${c} times, ${((c/l2Total)*100).toFixed(1)}%)`);
+
+                        exportArr.push({
+                            'ATA Chapter': ata,
+                            'Aircraft Model': model,
+                            'L2 Standard Issue': l2,
+                            'Total Count': l2Total,
+                            '% of ATA (System Impact)': pctAta,
+                            'Affected Registrations Breakdown': regsArr.join(' | ')
+                        });
+                    });
+                });
+            });
+            exportToExcel(exportArr, 'L2_Complaint_Summary_Grouped_v2');
+        }
+
+        function exportToExcel(data, fileName, sheetName = 'Data') {
+            if (!data || data.length === 0) { alert("No data to export!"); return; }
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            XLSX.writeFile(wb, `${fileName}_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.xlsx`);
+        }
+
+        function exportTrendData() {
+            const data = currentFilteredData.filter(d => d.category === 'Tech').map(d => ({
+                Date: d['Complaint Date'], Model: d.acModel, Registration: d.ACREG, Complaint: d.cleanComp
+            }));
+            exportToExcel(data, 'Trend_Analysis_Data');
+        }
+
+        function exportCatData() {
+            const cats = { 'Tech': 0, 'Info': 0 };
+            currentFilteredData.forEach(d => { if(d.category in cats) cats[d.category]++; });
+            const data = Object.keys(cats).map(k => ({ Category: k, Count: cats[k] }));
+            exportToExcel(data, 'Category_Data');
+        }
+        
+        function exportStatusData() {
+            const statuses = {};
+            currentFilteredData.forEach(d => { if(d.Maintenance_Status) statuses[d.Maintenance_Status] = (statuses[d.Maintenance_Status]||0)+1; });
+            const data = Object.keys(statuses).map(k => ({ Status: k, Count: statuses[k] }));
+            exportToExcel(data, 'Maintenance_Status_Data');
+        }
+
+        function exportFleetData() {
+            const counts = {};
+            currentFilteredData.filter(d => d.category === 'Tech').forEach(d => {
+                if(d.ACREG) counts[d.ACREG] = (counts[d.ACREG] || 0) + 1;
+            });
+            const data = Object.entries(counts).map(([k,v]) => ({ Registration: k, Defect_Count: v })).sort((a,b) => b.Defect_Count - a.Defect_Count);
+            exportToExcel(data, 'Fleet_Reliability_Data');
+        }
+
+        function exportParetoData() {
+             const counts = {};
+            currentFilteredData.filter(d => d.category === 'Tech').forEach(d => {
+                if(d.ataLabel) counts[d.ataLabel] = (counts[d.ataLabel] || 0) + 1;
+            });
+            const data = Object.entries(counts).map(([k,v]) => ({ ATA: k, Count: v })).sort((a,b) => b.Count - a.Count);
+            let sum = 0;
+            const total = data.reduce((a,b) => a + b.Count, 0);
+            data.forEach(d => {
+                sum += d.Count;
+                d['Cumulative %'] = ((sum / total) * 100).toFixed(2) + '%';
+            });
+            exportToExcel(data, 'ATA_Pareto_Data');
+        }
+
+        function exportRootCauseData() {
+             const counts = {};
+            currentFilteredData.filter(d => d.category === 'Tech').forEach(d => {
+                if(d.ataLabel) counts[d.ataLabel] = (counts[d.ataLabel] || 0) + 1;
+            });
+            const data = Object.entries(counts).map(([k,v]) => ({ ATA_Chapter: k, Count: v })).sort((a,b) => b.Count - a.Count);
+            exportToExcel(data, 'Top_ATA_Chapters');
+        }
+
+        function runNgramAnalysis(data) {
+             phraseDataStore = data;
+             const col = document.getElementById('ngram-col').value;
+             const stopWords = new Set(["THE","AND","TO","OF","IN","IS","FOR","WITH","ON","AT","FROM","BY","NAME","AUTH","NO","DATE","TIME","REF","AMM","TASK","REV","ACTION","CHECKED","NOTED","FOUND","HAS", "WAS", "MSG"]);
+            const phraseCounts = {};
+            data.forEach(row => {
+                let txt = row[col]; if(!txt) return;
+                txt = txt.replace(/(Name\s*:|Auth\s*no\.?\s*:|Created\s*by\s*:|Action\s*STA\s*:|\-{3,})[\s\S]*/gi, "");
+                const upperTxt = txt.toUpperCase();
+                const rowWordsFound = new Set();
+
+                masterFuzzyWords.forEach(mw => {
+                    const escapedMw = mw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    if (new RegExp(`(^|[^A-Z0-9_])${escapedMw}([^A-Z0-9_]|$)`, 'i').test(upperTxt)) {
+                        rowWordsFound.add(mw);
+                    }
+                });
+
+                const words = upperTxt.replace(/[^A-Z0-9\/\-\s]/g, ' ').split(/\s+/).filter(w => w.length>2 && !stopWords.has(w) && isNaN(w));
+                words.forEach(w => {
+                    if (rowWordsFound.has(w)) return;
+                    if (globalFuzzyMap[w]) {
+                        rowWordsFound.add(globalFuzzyMap[w]);
+                    } else {
+                        const suggestion = currentFuzzySuggestions.find(s => s.original === w);
+                        if (suggestion) rowWordsFound.add(suggestion.suggested);
+                    }
+                });
+
+                rowWordsFound.forEach(masterWord => {
+                    phraseCounts[masterWord] = (phraseCounts[masterWord]||0)+1;
+                });
+            });
+            
+            const sorted = Object.entries(phraseCounts).sort((a,b)=>b[1]-a[1]).slice(0, 20);
+            const ngramEl = document.getElementById('ngram-chart');
+            if(sorted.length === 0) { Plotly.newPlot('ngram-chart', [], { title: { text: 'No dictionary words found', font: { size: 14, color: '#9CA3AF' } } }, {responsive: true}); return; }
+            
+            const barColors = sorted.map(item => {
+                const word = item[0];
+                if (wordCategories.Symptom && wordCategories.Symptom.includes(word)) return '#E11D48'; 
+                if (wordCategories.Component && wordCategories.Component.includes(word)) return '#4F46E5'; 
+                if (wordCategories.Action && wordCategories.Action.includes(word)) return '#10B981'; 
+                return '#94A3B8'; 
+            });
+
+            Plotly.newPlot('ngram-chart', [{ 
+                x: sorted.map(x=>x[0]), 
+                y: sorted.map(x=>x[1]), 
+                type: 'bar', 
+                marker: {color: barColors} 
+            }], { 
+                margin: {t:20,l:30,r:10,b:100}, 
+                xaxis: {tickangle: -45} 
+            }, {responsive: true});
+            
+            ngramEl.removeAllListeners('plotly_click');
+            ngramEl.on('plotly_click', function(clickData){
+                const phrase = clickData.points[0].x;
+                drilldownView(currentFilteredData.filter(d => {
+                    let text = (d[col]||"").toUpperCase();
+                    const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const exactMatch = new RegExp(`(^|[^A-Z0-9_])${escapedPhrase}([^A-Z0-9_]|$)`, 'i').test(text);
+                    const originalWords = Object.keys(globalFuzzyMap).filter(k => globalFuzzyMap[k] === phrase);
+                    const suggWords = currentFuzzySuggestions.filter(s => s.suggested === phrase).map(s => s.original);
+                    const fuzzyMatch = [...originalWords, ...suggWords].some(ow => {
+                        const escapedOw = ow.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        return new RegExp(`(^|[^A-Z0-9_])${escapedOw}([^A-Z0-9_]|$)`, 'i').test(text);
+                    });
+                    return exactMatch || fuzzyMatch;
+                }), `Phrase: "${phrase}"`);
+            });
+            
+            const phraseTab = document.getElementById('tab-phrase');
+            if (phraseTab && !phraseTab.classList.contains('hidden')) {
+                 renderEChartsAdvanced(data); 
+            }
+        }
+
+        function exportNgramData() {
+             const col = document.getElementById('ngram-col').value;
+             const stopWords = new Set(["THE","AND","TO","OF","IN","IS","FOR","WITH","ON","AT","FROM","BY","NAME","AUTH","NO","DATE","TIME","REF","AMM","TASK","REV","ACTION","CHECKED","NOTED","FOUND","HAS", "WAS", "MSG"]);
+            const phraseCounts = {};
+            currentFilteredData.forEach(row => {
+                let txt = row[col]; if(!txt) return;
+                txt = txt.replace(/(Name\s*:|Auth\s*no\.?\s*:|Created\s*by\s*:|Action\s*STA\s*:|\-{3,})[\s\S]*/gi, "");
+                const upperTxt = txt.toUpperCase();
+                const rowWordsFound = new Set();
+
+                masterFuzzyWords.forEach(mw => {
+                    const escapedMw = mw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    if (new RegExp(`(^|[^A-Z0-9_])${escapedMw}([^A-Z0-9_]|$)`, 'i').test(upperTxt)) {
+                        rowWordsFound.add(mw);
+                    }
+                });
+
+                const words = upperTxt.replace(/[^A-Z0-9\/\-\s]/g, ' ').split(/\s+/).filter(w => w.length>2 && !stopWords.has(w) && isNaN(w));
+                words.forEach(w => {
+                    if (rowWordsFound.has(w)) return;
+                    if (globalFuzzyMap[w]) {
+                        rowWordsFound.add(globalFuzzyMap[w]);
+                    } else {
+                        const suggestion = currentFuzzySuggestions.find(s => s.original === w);
+                        if (suggestion) rowWordsFound.add(suggestion.suggested);
+                    }
+                });
+
+                rowWordsFound.forEach(masterWord => {
+                    phraseCounts[masterWord] = (phraseCounts[masterWord]||0)+1;
+                });
+            });
+            
+            const data = Object.entries(phraseCounts).map(([k,v]) => ({ Word: k, Count: v })).sort((a,b) => b.Count - a.Count);
+            exportToExcel(data, 'Smart_Text_Analysis');
+        }
+
+        function exportChronicData() {
+            const tech = currentFilteredData.filter(d => d.category === 'Tech' && d.pDate);
+            const groups = {};
+            tech.forEach(d => {
+                const key = `${d.ACREG}|${d.ataCode}`;
+                if(!groups[key]) groups[key] = { ...d, count: 0 };
+                groups[key].count++;
+            });
+            const data = Object.values(groups).filter(i => i.count > 1).map(c => ({
+                ACREG: c.ACREG, ATA: c.ataLabel, Occurrences: c.count,
+                Last_Date: c['Complaint Date'], Last_Status: c.Maintenance_Status, Latest_Complaint: c.cleanComp
+            })).sort((a,b) => b.Occurrences - a.Occurrences);
+            exportToExcel(data, 'Chronic_Alert_Data');
+        }
+
+        function exportMatrixData() {
+             const data = currentFilteredData.filter(d => d.category === 'Tech').map(d => ({
+                 Aircraft: d.ACREG, ATA: d.ataLabel, Date: d['Complaint Date'], Defect: d.cleanComp
+             }));
+             exportToExcel(data, 'Matrix_Heatmap_Source');
+        }
+
+        function exportRawData() { exportToExcel(currentRenderData, 'Raw_Data_Export'); }
+
+        function exportResolutionFlow() {
+            if (!sankeyDataExport || sankeyDataExport.length === 0) { alert("No Flow data to export!"); return; }
+            exportToExcel(sankeyDataExport, 'Defect_Resolution_Flow');
+        }
+
+        // --- 6. PARSING & HELPERS ---
+        function parseATA(rawStr) {
+            if (!rawStr) return { code: "Unknown", label: "Unknown" };
+            const parts = rawStr.split('-');
+            let code = rawStr.trim();
+            if (parts.length > 1) { const possibleATA = parts[1].trim(); if (possibleATA.length > 0) code = possibleATA; }
+            const desc = ataDescriptions[code] || "Unknown";
+            const label = desc !== "Unknown" ? `${code} - ${desc}` : rawStr;
+            return { code, label };
+        }
+
+        function formatDate(d) {
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = String(d.getFullYear()).slice(-2);
+            return `${day}-${month}-${year}`;
+        }
+
+        function parseDate(str) {
+            if(!str) return null;
+            try {
+                let cleanStr = str.trim().split(' ')[0];
+                cleanStr = cleanStr.replace(/-/g, '/').replace(/\./g, '/');
+                const parts = cleanStr.split('/');
+                let d;
+                if (parts.length === 3) {
+                    let day = parseInt(parts[0], 10);
+                    let month = parseInt(parts[1], 10) - 1; 
+                    let year = parseInt(parts[2], 10);
+                    if (year < 100) year += 2000;
+                    d = new Date(year, month, day);
+                } else {
+                    d = new Date(str); 
+                }
+                return (d instanceof Date && !isNaN(d.getTime())) ? d : null;
+            } catch(e) { return null; }
+        }
+
+        function cleanText(txt) { 
+            return (txt || "").replace(/(Name\s*:|Auth\s*no\.?\s*:|Created\s*by\s*:|Action\s*STA\s*:|\-{3,})[\s\S]*/gi, "").trim(); 
+        }
+        
+        function categorize(row, ataCode) {
+            const act = (row['Activity Code Text']||"").toUpperCase();
+            const comp = (row['Complaint Text']||"").toUpperCase();
+            const infoKeys = ['NOTED'];
+            const infoATAs = ['22', '25' , '50'];
+            if (infoATAs.includes(ataCode)) return 'Info';
+            if(act.includes('INFORMATION') || infoKeys.some(k => comp.includes(k))) return 'Info';
+            return 'Tech';
+        }
+
+        // --- 7. RENDER CHARTS ---
+        function renderKPIs(data) {
+            const tech = data.filter(d => d.category === 'Tech');
+            const ataCounts = {};
+            tech.forEach(d => { if(d.ataLabel !== "Unknown") ataCounts[d.ataLabel] = (ataCounts[d.ataLabel]||0)+1; });
+            const topAta = Object.keys(ataCounts).length ? Object.entries(ataCounts).sort((a,b)=>b[1]-a[1])[0][0] : "-";
+            const acCounts = {};
+            tech.forEach(d => { if(d.ACREG) acCounts[d.ACREG] = (acCounts[d.ACREG]||0)+1; });
+            const sickAc = Object.keys(acCounts).length ? Object.entries(acCounts).sort((a,b)=>b[1]-a[1])[0][0] : "-";
+            const validDates = data.filter(d => d.pDate);
+            let avgDay = 0;
+            if (validDates.length > 1) {
+                const days = (validDates[validDates.length-1].pDate - validDates[0].pDate) / (1000*3600*24) || 1;
+                avgDay = (validDates.length / days).toFixed(1);
+            }
+            document.getElementById('kpi-total').innerText = data.length.toLocaleString();
+            document.getElementById('kpi-tech').innerText = tech.length.toLocaleString();
+            document.getElementById('kpi-top-ata').innerText = topAta; 
+            document.getElementById('kpi-sickest-ac').innerText = sickAc;
+            document.getElementById('kpi-avg-day').innerText = avgDay;
+        }
+
+        function setTrendFreq(freq) {
+            currentTrendFreq = freq;
+            document.querySelectorAll('.trend-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`freq-${freq.toLowerCase()}`).classList.add('active');
+            renderTrend(currentFilteredData);
+        }
+
+        function renderTrend(data) {
+            const validData = data.filter(d => d.pDate && d.category === 'Tech');
+            const modelGroups = {};
+            const allTimePoints = new Set();
+            
+            validData.forEach(d => {
+                let timeKey;
+                if (currentTrendFreq === 'Day') {
+                    const y = d.pDate.getFullYear();
+                    const m = String(d.pDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.pDate.getDate()).padStart(2, '0');
+                    timeKey = `${y}-${m}-${day}`;
+                } else if (currentTrendFreq === 'Week') {
+                    const date = new Date(d.pDate.getTime());
+                    date.setHours(0, 0, 0, 0);
+                    date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+                    const week1 = new Date(date.getFullYear(), 0, 4);
+                    const weekNum = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+                    timeKey = `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+                } else {
+                    const y = d.pDate.getFullYear();
+                    const m = String(d.pDate.getMonth() + 1).padStart(2, '0');
+                    timeKey = `${y}-${m}`;
+                }
+
+                const model = d.acModel || "Unknown";
+                allTimePoints.add(timeKey);
+                
+                if (!modelGroups[model]) modelGroups[model] = {};
+                modelGroups[model][timeKey] = (modelGroups[model][timeKey] || 0) + 1;
+            });
+
+            const sortedTimePoints = Array.from(allTimePoints).sort();
+            
+            const traces = [];
+            Object.keys(modelGroups).forEach(model => {
+                const yValues = sortedTimePoints.map(t => modelGroups[model][t] || 0);
+                traces.push({
+                    x: sortedTimePoints, 
+                    y: yValues, 
+                    type: 'scatter', 
+                    mode: 'lines+markers', 
+                    name: model, 
+                    line: { shape: 'spline', width: 2 }, 
+                    marker: { size: 6 }, 
+                    connectgaps: true 
+                });
+            });
+
+            if (traces.length === 0) traces.push({ x: [], y: [], type: 'scatter', name: 'No Data' });
+            
+            let xaxisConfig = { type: 'category' };
+            if (currentTrendFreq === 'Day') xaxisConfig = { type: 'date', tickformat: '%d %b' };
+            if (currentTrendFreq === 'Month') xaxisConfig = { type: 'date', tickformat: '%b %Y', dtick: 'M1' };
+
+            const trendEl = document.getElementById('trend-chart');
+            Plotly.newPlot('trend-chart', traces, { 
+                margin: {t:30,l:40,r:10,b:40}, 
+                autosize: true, 
+                hovermode: 'x unified', 
+                legend: { orientation: 'h', y: -0.2 },
+                xaxis: xaxisConfig
+            }, {responsive: true});
+
+            trendEl.removeAllListeners('plotly_click');
+            trendEl.on('plotly_click', function(clickData){
+                const point = clickData.points[0];
+                const xVal = point.x; 
+                const modelName = point.data.name; 
+                
+                const subset = currentFilteredData.filter(d => {
+                     if (!d.pDate) return false;
+                     let dKey;
+                     const y = d.pDate.getFullYear();
+                     const m = String(d.pDate.getMonth() + 1).padStart(2, '0');
+                     const day = String(d.pDate.getDate()).padStart(2, '0');
+
+                     if (currentTrendFreq === 'Day') {
+                         dKey = `${y}-${m}-${day}`;
+                         return xVal.startsWith(dKey) && (modelName !== 'No Data' ? d.acModel === modelName : true);
+                     } else if (currentTrendFreq === 'Month') {
+                         dKey = `${y}-${m}`;
+                         return xVal.startsWith(dKey) && (modelName !== 'No Data' ? d.acModel === modelName : true);
+                     } else {
+                         return (modelName !== 'No Data' ? d.acModel === modelName : true);
+                     }
+                });
+                
+                drilldownView(subset, `${currentTrendFreq}: ${xVal}, Model: ${modelName}`);
+            });
+        }
+        
+        function renderCategoryChart(data) {
+            const cats = { 
+                'Tech': data.filter(d => d.category === 'Tech').length, 
+                'Info': data.filter(d => d.category === 'Info').length 
+            };
+            if (cats['Tech'] === 0 && cats['Info'] === 0) {
+                 Plotly.newPlot('cat-chart', [], { title: { text: 'No Data', font: { size: 14, color: '#9CA3AF' } } });
+                 return;
+            }
+
+            const catEl = document.getElementById('cat-chart');
+            Plotly.newPlot('cat-chart', [{ 
+                labels: Object.keys(cats), 
+                values: Object.values(cats), 
+                type: 'pie', 
+                marker: {colors: ['#DC2626', '#10B981']}, 
+                hole: 0.4 
+            }], { 
+                margin: {t:0,l:0,r:0,b:0} 
+            }, {responsive: true});
+            
+            catEl.removeAllListeners('plotly_click');
+            catEl.on('plotly_click', function(clickData){
+                const label = clickData.points[0].label;
+                drilldownView(currentFilteredData.filter(d => d.category === (label === 'Tech' ? 'Tech' : 'Info')), `Category: ${label}`);
+            });
+        }
+
+        function renderStatusChart(data) {
+            const statusCounts = {};
+            data.forEach(d => { 
+                if(d.Maintenance_Status) {
+                    statusCounts[d.Maintenance_Status] = (statusCounts[d.Maintenance_Status]||0)+1; 
+                }
+            });
+            if (Object.keys(statusCounts).length === 0) {
+                 Plotly.newPlot('status-chart', [], { title: { text: 'No Data', font: { size: 14, color: '#9CA3AF' } } });
+                 return;
+            }
+
+            const statusEl = document.getElementById('status-chart');
+            const statusColors = { 'Fix': '#EF4444', 'Defer': '#F59E0B', 'Inspect': '#3B82F6', 'Info': '#10B981', 'Other': '#9CA3AF' };
+            const sLabels = Object.keys(statusCounts);
+            const sValues = Object.values(statusCounts);
+            const sColors = sLabels.map(l => statusColors[l] || '#CBD5E1');
+
+            Plotly.newPlot('status-chart', [{ 
+                labels: sLabels, 
+                values: sValues, 
+                type: 'pie', 
+                marker: {colors: sColors}, 
+                hole: 0.4, 
+                textinfo: 'label+percent' 
+            }], { 
+                margin: {t:0,l:0,r:0,b:0}, 
+                showlegend: true, 
+                legend: {orientation: 'h', y: -0.1} 
+            }, {responsive: true});
+            
+            statusEl.removeAllListeners('plotly_click');
+            statusEl.on('plotly_click', function(clickData){
+                const label = clickData.points[0].label;
+                drilldownView(currentFilteredData.filter(d => d.Maintenance_Status === label), `Status: ${label}`);
+            });
+        }
+
+        function renderTop5Cards(data) {
+            const tech = data.filter(d => d.category === 'Tech');
+            
+            const acCounts = {};
+            tech.forEach(d => { if(d.ACREG) acCounts[d.ACREG] = (acCounts[d.ACREG]||0)+1; });
+            const top5AC = Object.entries(acCounts).sort((a,b)=>b[1]-a[1]).slice(0, 5);
+            
+            const acListHtml = top5AC.map((item, idx) => `
+                <div class="flex justify-between items-center text-sm py-1.5 border-b border-gray-50 last:border-0">
+                    <span class="font-semibold text-gray-700 w-6">${idx+1}.</span>
+                    <span class="text-blue-600 flex-1 truncate pr-2" title="${escapeHTML(item[0])}">${escapeHTML(item[0])}</span>
+                    <span class="font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded-full text-xs">${item[1]}</span>
+                </div>
+            `).join('');
+            document.getElementById('top5-ac-list').innerHTML = acListHtml || '<div class="text-xs text-gray-400 text-center py-4">No Data</div>';
+
+            const ataCounts = {};
+            tech.forEach(d => { if(d.ataLabel && d.ataLabel !== 'Unknown') ataCounts[d.ataLabel] = (ataCounts[d.ataLabel]||0)+1; });
+            const top5ATA = Object.entries(ataCounts).sort((a,b)=>b[1]-a[1]).slice(0, 5);
+
+            const ataListHtml = top5ATA.map((item, idx) => `
+                <div class="flex justify-between items-center text-sm py-1.5 border-b border-gray-50 last:border-0">
+                    <span class="font-semibold text-gray-700 w-6">${idx+1}.</span>
+                    <span class="text-gray-600 flex-1 truncate pr-2" title="${escapeHTML(item[0])}">${escapeHTML(item[0])}</span>
+                    <span class="font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded-full text-xs">${item[1]}</span>
+                </div>
+            `).join('');
+            document.getElementById('top5-ata-list').innerHTML = ataListHtml || '<div class="text-xs text-gray-400 text-center py-4">No Data</div>';
+        }
+
+        function renderMatrix(data) {
+            const tech = data.filter(d => d.category === 'Tech');
+            const acCounts = {};
+            const ataCounts = {};
+            const matrixCounts = {};
+            tech.forEach(d => {
+                if(d.ACREG) acCounts[d.ACREG] = (acCounts[d.ACREG]||0)+1;
+                if(d.ataLabel) ataCounts[d.ataLabel] = (ataCounts[d.ataLabel]||0)+1;
+                const key = `${d.ACREG}|${d.ataLabel}`;
+                matrixCounts[key] = (matrixCounts[key]||0)+1;
+            });
+            const topAC = Object.entries(acCounts).sort((a,b)=>b[1]-a[1]).slice(0, 20).map(x=>x[0]);
+            const topATA = Object.entries(ataCounts).sort((a,b)=>b[1]-a[1]).slice(0, 20).map(x=>x[0]);
+            const zValues = [];
+            topAC.forEach(ac => {
+                const row = [];
+                topATA.forEach(ata => { row.push(matrixCounts[`${ac}|${ata}`] || 0); });
+                zValues.push(row);
+            });
+            const matrixEl = document.getElementById('matrix-chart');
+            const xLabels = topATA.map(ata => {
+                const code = ata.split(' - ')[0];
+                return isNaN(code) ? ata : `ATA ${code}`;
+            });
+            const hoverTexts = topATA;
+
+            if(topAC.length === 0) { Plotly.newPlot('matrix-chart', [], { title: { text: 'No data', font: { size: 14, color: '#9CA3AF' } } }, {responsive: true}); return; }
+            
+            const customColorscale = [
+                [0, '#FFFFFF'],      // 0: White
+                [0.000001, '#FEF9C3'], // >0: Light Yellow
+                [0.35, '#FACC15'],   // Medium: Yellow
+                [0.7, '#EF4444'],    // High: Red
+                [1, '#7F1D1D']       // Max: Dark Red
+            ];
+
+            const textValues = zValues.map(row => row.map(v => v > 0 ? v : ""));
+
+            Plotly.newPlot('matrix-chart', [{ 
+                z: zValues, x: xLabels, y: topAC, type: 'heatmap', colorscale: customColorscale, showscale: true,
+                ygap: 1, xgap: 1,
+                text: textValues, 
+                texttemplate: "%{text}", 
+                hovertext: zValues.map(row => row.map((val, i) => `ATA: ${hoverTexts[i]}<br>Count: ${val}`)),
+                hovertemplate: 'Aircraft: %{y}<br>%{hovertext}<extra></extra>'
+            }], { margin: {t:30, l:100, r:30, b:100}, xaxis: { tickangle: -45, title: '' }, yaxis: { title: '' } }, {responsive: true});
+            
+            matrixEl.removeAllListeners('plotly_click');
+            matrixEl.on('plotly_click', function(clickData){
+                const xVal = clickData.points[0].x;
+                const ac = clickData.points[0].y;
+                if(xVal.startsWith('ATA ')) {
+                    const code = xVal.split(' ')[1];
+                    drilldownView(currentFilteredData.filter(d => d.ACREG === ac && d.ataCode === code && d.category === 'Tech'), `Aircraft: ${ac}, ATA: ${xVal}`);
+                } else {
+                    drilldownView(currentFilteredData.filter(d => d.ACREG === ac && d.ataLabel === xVal && d.category === 'Tech'), `Aircraft: ${ac}, ATA: ${xVal}`);
+                }
+            });
+        }
+
+        function renderSunburst(data) {
+            const tech = data.filter(d => d.category === 'Tech');
+            const labels = [], parents = [], values = [], ids = [];
+            labels.push("Fleet"); parents.push(""); ids.push("Fleet"); values.push(0); 
+            const typeMap = {}, modelMap = {}, ataMap = {};
+            tech.forEach(d => {
+                const t = d.acType || "Unknown", m = d.acModel || "Unknown", a = d.ataCode || "Unknown";
+                if(!typeMap[t]) typeMap[t] = 0; typeMap[t]++;
+                const mKey = `${t}|${m}`; if(!modelMap[mKey]) modelMap[mKey] = 0; modelMap[mKey]++;
+                const aKey = `${t}|${m}|${a}`; if(!ataMap[aKey]) ataMap[aKey] = 0; ataMap[aKey]++;
+            });
+            Object.keys(typeMap).forEach(t => { labels.push(t); parents.push("Fleet"); ids.push(t); values.push(typeMap[t]); });
+            Object.keys(modelMap).forEach(key => { const [t, m] = key.split('|'); labels.push(m); parents.push(t); ids.push(key); values.push(modelMap[key]); });
+            Object.keys(ataMap).forEach(key => { const [t, m, a] = key.split('|'); labels.push(a); parents.push(`${t}|${m}`); ids.push(key); values.push(ataMap[key]); });
+            values[0] = tech.length;
+            const sunburstEl = document.getElementById('sunburst-chart');
+            Plotly.newPlot('sunburst-chart', [{ type: "sunburst", ids: ids, labels: labels, parents: parents, values: values, textinfo: "label+value", branchvalues: "total", marker: {line: {width: 2}} }], { margin: {l:0, r:0, b:0, t:0} }, {responsive: true});
+            
+            sunburstEl.removeAllListeners('plotly_click');
+            sunburstEl.on('plotly_click', function(clickData) {
+                const id = clickData.points[0].id;
+                if (id === "Fleet") return;
+                const parts = id.split('|');
+                if (parts.length === 3) {
+                    const [t, m, a] = parts;
+                    const subset = data.filter(d => d.acType === t && d.acModel === m && d.ataCode === a && d.category === 'Tech');
+                    drilldownView(subset, `Type: ${t}, Model: ${m}, ATA: ${a}`);
+                }
+            });
+        }
+
+        function setFleetLimit(limit) {
+            currentFleetLimit = limit;
+            renderFleetHealth(currentFilteredData);
+            const buttons = document.getElementById('fleet-chart').parentNode.querySelectorAll('button');
+            buttons.forEach(btn => {
+                if ((limit === 'ALL' && btn.innerText === 'All') || 
+                    (limit === 5 && btn.innerText === 'Top 5') || 
+                    (limit === 10 && btn.innerText === 'Top 10')) {
+                    btn.classList.add('bg-gray-100', 'font-bold');
+                } else {
+                    btn.classList.remove('bg-gray-100', 'font-bold');
+                }
+            });
+        }
+
+        function renderFleetHealth(data) {
+            const tech = data.filter(d => d.category === 'Tech');
+            const acCounts = {};
+            tech.forEach(d => { if(d.ACREG) acCounts[d.ACREG] = (acCounts[d.ACREG]||0)+1; });
+            let sortedAC = Object.entries(acCounts).sort((a,b) => b[1]-a[1]);
+            if (currentFleetLimit !== 'ALL') {
+                sortedAC = sortedAC.slice(0, currentFleetLimit);
+            }
+            const xLabels = sortedAC.map(x => x[0]);
+            const fleetEl = document.getElementById('fleet-chart');
+            Plotly.newPlot('fleet-chart', [{ x: xLabels, y: sortedAC.map(x=>x[1]), type: 'bar', marker: {color: '#8A4C9C'} }], { margin: {t:20,l:30,r:10,b:80} }, {responsive: true});
+            fleetEl.removeAllListeners('plotly_click');
+            fleetEl.on('plotly_click', function(clickData){ drilldownView(data.filter(d => d.ACREG === clickData.points[0].x && d.category === 'Tech'), `Aircraft: ${clickData.points[0].x}`); });
+            
+            renderSunburst(data);
+
+            const ataCounts = {};
+            tech.forEach(d => { if(d.ataLabel !== "Unknown") ataCounts[d.ataLabel] = (ataCounts[d.ataLabel]||0)+1; });
+            const sortedATA = Object.entries(ataCounts).sort((a,b) => b[1]-a[1]).slice(0, 20);
+            const xLabelsATA = sortedATA.map(x => {
+                 const code = x[0].split(' - ')[0];
+                 return isNaN(code) ? x[0] : `ATA ${code}`;
+            });
+            const hoverTextsATA = sortedATA.map(x => x[0]);
+
+            const total = sortedATA.reduce((sum, x) => sum + x[1], 0);
+            let cumSum = 0;
+            const cumPct = sortedATA.map(x => { cumSum += x[1]; return (cumSum/total)*100; });
+            const paretoEl = document.getElementById('pareto-chart');
+            
+            Plotly.newPlot('pareto-chart', [
+                { 
+                    x: xLabelsATA, 
+                    y: sortedATA.map(x=>x[1]), 
+                    type: 'bar', 
+                    name: 'Count', 
+                    marker: {color: '#F59E0B'},
+                    text: sortedATA.map(x=>x[1]), 
+                    textposition: 'outside',      
+                    hovertext: hoverTextsATA, 
+                    hovertemplate: '%{hovertext}<br>Count: %{y}<extra></extra>' 
+                },
+                { 
+                    x: xLabelsATA, 
+                    y: cumPct, 
+                    type: 'scatter', 
+                    mode: 'lines+markers', 
+                    name: 'Cum %', 
+                    yaxis: 'y2', 
+                    line: {color: '#374151', width: 2},
+                    marker: {size: 6, color: '#374151'}, 
+                    hovertext: hoverTextsATA, 
+                    hovertemplate: '%{hovertext}<br>Cum %: %{y:.2f}%<extra></extra>' 
+                }
+            ], { 
+                margin: {t:25,l:40,r:40,b:50}, 
+                yaxis2: {overlaying: 'y', side: 'right', range: [0, 110], showgrid: false}, 
+                yaxis: {showgrid: false},
+                showlegend: false 
+            }, {responsive: true});
+
+            paretoEl.removeAllListeners('plotly_click');
+            paretoEl.on('plotly_click', function(clickData){ 
+                const fullLabel = clickData.points[0].hovertext;
+                drilldownView(data.filter(d => d.ataLabel === fullLabel), `ATA: ${fullLabel}`); 
+            });
+        }
+
+        function renderFaultCodes(data) {
+            const counts = {};
+            data.filter(d => d.category==='Tech' && d.ataLabel!=='Unknown').forEach(d => counts[d.ataLabel]=(counts[d.ataLabel]||0)+1);
+            const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,15);
+            const yLabels = sorted.map(x => {
+                 const code = x[0].split(' - ')[0];
+                 return isNaN(code) ? x[0] : `ATA ${code}`;
+            });
+            const hoverTexts = sorted.map(x => x[0]);
+            const fcEl = document.getElementById('fc-chart');
+            Plotly.newPlot('fc-chart', [{ 
+                y: yLabels, x: sorted.map(x=>x[1]), type: 'bar', orientation: 'h', marker: {color: '#EF4444'},
+                hovertext: hoverTexts, hovertemplate: '%{hovertext}<br>Count: %{x}<extra></extra>'
+            }], { 
+                margin: {t:0, l:55, r:10, b:30}, 
+                yaxis: {
+                    autorange:'reversed', 
+                    tickpad: 10 
+                } 
+            }, {responsive: true});
+            fcEl.removeAllListeners('plotly_click');
+            fcEl.on('plotly_click', function(clickData){ 
+                const fullLabel = clickData.points[0].hovertext;
+                drilldownView(data.filter(d => d.ataLabel === fullLabel), `ATA: ${fullLabel}`); 
+            });
+
+            const listEl = document.getElementById('fc-list');
+            if (listEl) {
+                listEl.innerHTML = sorted.map(([label, count]) => {
+                    const safeLabel = String(label).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    return `
+                        <div class="flex justify-between items-center py-2 border-b border-gray-100 hover:bg-red-50 cursor-pointer transition" 
+                             onclick="drilldownView(currentFilteredData.filter(d => d.ataLabel === '${safeLabel}'), 'ATA: ${safeLabel}')">
+                            <span class="text-xs text-gray-600 truncate w-3/4" title="${escapeHTML(label)}">${escapeHTML(label)}</span>
+                            <span class="text-xs font-bold text-gray-800">${count}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function renderEChartsAdvanced(data) {
+            if (!data || data.length === 0) return;
+            
+            const sankeyEl = document.getElementById('echart-sankey');
+
+            if (!sankeyEl || sankeyEl.clientWidth === 0 || sankeyEl.clientHeight === 0) return;
+
+            const existingSankey = echarts.getInstanceByDom(sankeyEl);
+            if (existingSankey) existingSankey.dispose();
+
+            const techData = data.filter(d => d.category === 'Tech');
+
+            const nodes = new Set();
+            const links = [];
+            const flowCounts = {}; 
+            sankeyDataExport = []; 
+
+            techData.forEach(d => {
+                let txt = (d['Complaint Text'] || "").toUpperCase();
+                const actTxt = (d['Activity Code Text'] || "").toUpperCase(); 
+
+                let sym = null;
+                for (const s of wordCategories.Symptom) { 
+                    const escapedS = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    if (new RegExp(`(^|[^A-Z0-9_])${escapedS}([^A-Z0-9_]|$)`, 'i').test(txt)) { sym = s; break; } 
+                }
+                
+                let comp = null;
+                for (const c of wordCategories.Component) { 
+                    const escapedC = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    if (new RegExp(`(^|[^A-Z0-9_])${escapedC}([^A-Z0-9_]|$)`, 'i').test(txt)) { comp = c; break; } 
+                }
+
+                let action = null;
+                for (const a of actionKeywords) { if (actTxt.includes(a)) { action = a; break; } }
+                if(!action) action = d.Maintenance_Status || "OTHER"; 
+
+                if (sym && comp && action) {
+                    const key = `${sym}|${comp}|${action}`;
+                    flowCounts[key] = (flowCounts[key] || 0) + 1;
+                }
+            });
+
+            const sortedFlows = Object.entries(flowCounts).sort((a, b) => b[1] - a[1]).slice(0, 20);
+            
+            sortedFlows.forEach(([key, val]) => {
+                const [s, c, a] = key.split('|');
+                sankeyDataExport.push({ Symptom: s, Component: c, Action: a, Count: val });
+                const n1 = `Sym: ${s}`, n2 = `Part: ${c}`, n3 = `Act: ${a}`;
+                nodes.add(n1); nodes.add(n2); nodes.add(n3);
+                links.push({ source: n1, target: n2, value: val });
+                links.push({ source: n2, target: n3, value: val });
+            });
+
+            const sankeyChart = echarts.init(sankeyEl);
+            sankeyChart.setOption({
+                tooltip: { trigger: 'item', triggerOn: 'mousemove' },
+                series: [{
+                    type: 'sankey', layout: 'none',
+                    emphasis: { focus: 'adjacency' },
+                    data: Array.from(nodes).map(n => ({ name: n })),
+                    links: links,
+                    lineStyle: { color: 'source', curveness: 0.5 }
+                }]
+            });
+            
+            sankeyChart.on('click', function(params) {
+                const filterData = currentFilteredData.filter(d => d.category === 'Tech');
+                
+                if (params.dataType === 'node') {
+                    const name = params.name; 
+                    const keyword = name.split(': ')[1];
+                    const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const subset = filterData.filter(d => {
+                        let txt = (d['Complaint Text'] || "").toUpperCase();
+                        const actTxt = (d['Activity Code Text'] || "").toUpperCase();
+                        return new RegExp(`(^|[^A-Z0-9_])${escapedKeyword}([^A-Z0-9_]|$)`, 'i').test(txt) || actTxt.includes(keyword) || d.Maintenance_Status === keyword;
+                    });
+                    drilldownView(subset, `Flow Node: ${keyword}`);
+                } else if (params.dataType === 'edge') {
+                    const src = params.data.source.split(': ')[1];
+                    const tgt = params.data.target.split(': ')[1];
+                     const subset = filterData.filter(d => {
+                        let txt = (d['Complaint Text'] || "").toUpperCase();
+                        const actTxt = (d['Activity Code Text'] || "").toUpperCase();
+                        
+                        const escapedSrc = src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const escapedTgt = tgt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        
+                        const hasSrc = new RegExp(`(^|[^A-Z0-9_])${escapedSrc}([^A-Z0-9_]|$)`, 'i').test(txt) || actTxt.includes(src);
+                        const hasTgt = new RegExp(`(^|[^A-Z0-9_])${escapedTgt}([^A-Z0-9_]|$)`, 'i').test(txt) || actTxt.includes(tgt) || d.Maintenance_Status === tgt;
+                        
+                        return hasSrc && hasTgt;
+                    });
+                    drilldownView(subset, `Flow Link: ${src} -> ${tgt}`);
+                }
+            });
+        }
+
+        function drillChronic(reg, ataCode) {
+            const subset = currentFilteredData.filter(d => d.ACREG === reg && d.ataCode === ataCode);
+            drilldownView(subset, `Chronic: ${reg} - ATA ${ataCode}`);
+        }
+
+        function renderChronic(data) {
+            const tech = data.filter(d => d.category === 'Tech' && d.pDate);
+            const groups = {};
+            tech.forEach(d => {
+                const key = `${d.ACREG}|${d.ataCode}`;
+                if(!groups[key]) { groups[key] = { ...d, count: 1 }; } else { groups[key].count++; } 
+            });
+            
+            const chronicList = Object.values(groups).filter(item => item.count > 1); 
+
+            const html = chronicList.sort((a,b)=>b.count-a.count).map(c => `
+                <tr class="bg-white border-b hover:bg-red-50 cursor-pointer" onclick="highlightRow(this)">
+                    <td class="px-4 py-3 font-bold text-gray-800">${escapeHTML(c.ACREG)}</td>
+                    <td class="px-4 py-3">${escapeHTML(c.ataLabel)}</td>
+                    <td class="px-4 py-3 font-bold text-red-600">
+                        <span class="drill-link" onclick="event.stopPropagation(); drillChronic('${escapeHTML(c.ACREG)}', '${escapeHTML(c.ataCode)}')">${c.count}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm">${escapeHTML(c['Complaint Date'])}</td>
+                    <td class="px-4 py-3">${getStatusBadge(c.Maintenance_Status)}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500 truncate max-w-xs">${escapeHTML(c.cleanComp)}</td>
+                </tr>
+            `).join('');
+            document.getElementById('chronic-body').innerHTML = html || '<tr><td colspan="6" class="p-4 text-center text-gray-400">No recurring defects found in this selection.</td></tr>';
+        }
+
+        function renderProblemStatement(data) {
+            const techData = data.filter(d => d.category === 'Tech');
+            if(techData.length === 0) { document.getElementById('statement-content').innerHTML = "No technical data available."; return; }
+            
+            const grouping = {};
+            const ataModelTotals = {}; // ยอดรวมปัญหา Tech ของแต่ละ ATA+Model เพื่อนำไปคิดเปอร์เซ็นต์
+            
+            // 1. จัดกลุ่มตาม Model, ATA และ L2 Summary
+            techData.forEach(d => {
+                const ata = d.ataLabel && d.ataLabel !== "Unknown" ? d.ataLabel : "Unknown ATA";
+                const model = d.acModel || "Unknown";
+                const key = `${model}|${ata}`;
+
+                // นับยอดรวมปัญหาทางเทคนิคของกลุ่มนี้
+                if (!ataModelTotals[key]) ataModelTotals[key] = 0;
+                ataModelTotals[key]++;
+
+                if(d.l2SummariesArr && d.l2SummariesArr.length > 0) {
+                    d.l2SummariesArr.forEach(l2 => {
+                        // ข้ามรายการที่ไม่ได้ระบุปัญหา (General / Uncategorized)
+                        if (l2 !== 'General / Uncategorized') {
+                            if (!grouping[key]) grouping[key] = {};
+                            if (!grouping[key][l2]) grouping[key][l2] = { regs: new Set(), count: 0 };
+                            
+                            if (d.ACREG) {
+                                grouping[key][l2].regs.add(d.ACREG); // เก็บทะเบียนเครื่องแบบไม่ซ้ำ (Set)
+                            }
+                            grouping[key][l2].count++; // นับจำนวนครั้งที่เกิด L2 นี้
+                        }
+                    });
+                }
+            });
+
+            let html = "";
+            let hasIssues = false;
+            
+            // ประโยคเชื่อมต่อ (สลับใช้เพื่อไม่ให้ซ้ำซาก)
+            const templates = [
+                "Characterized by pilot reports of",
+                "Identified by pilot reports of",
+                "Presenting with pilot reports of",
+                "Associated with pilot reports of"
+            ];
+
+            // 2. สร้างข้อความ HTML สำหรับรายงาน
+            Object.keys(grouping).sort().forEach(groupKey => {
+                const l2Dict = grouping[groupKey];
+                const totalModelAta = ataModelTotals[groupKey];
+                
+                // เรียงลำดับ L2 ตามจำนวนที่เกิดบ่อยสุด (มากไปน้อย)
+                const validL2s = Object.keys(l2Dict).sort((a, b) => l2Dict[b].count - l2Dict[a].count);
+
+                if(validL2s.length > 0) {
+                    hasIssues = true;
+                    const [model, ata] = groupKey.split('|');
+                    
+                    html += `<div class="mb-6 pb-4 border-b border-gray-300">`;
+                    html += `<div class="font-bold text-blue-800 mb-2">${escapeHTML(model)} ATA ${escapeHTML(ata)}</div>`;
+                    html += `<div class="mb-4">Three-month rolling average of PIREPs rate per 1,000 flight hours exceeds the threshold. Chronic aircraft identified:</div>`;
+                    
+                    validL2s.forEach((l2, idx) => {
+                        const regs = Array.from(l2Dict[l2].regs).sort().map(r => escapeHTML(r)).join(", ");
+                        const sentence = templates[idx % templates.length];
+                        
+                        // คำนวณเปอร์เซ็นต์ (ความถี่ของ L2 นี้ / ความถี่รวมของ Model+ATA)
+                        const pct = ((l2Dict[l2].count / totalModelAta) * 100).toFixed(1);
+                        
+                        html += `<div class="mt-2 text-sm"><span class="font-semibold text-gray-700">Chronic aircraft:</span> ${regs} ${sentence} <span class="font-bold">${escapeHTML(l2)}</span>. (${pct}%)</div>`;
+                    });
+                    
+                    html += `</div>`;
+                }
+            });
+
+            if(!hasIssues) {
+                html = `<div class="p-8 text-center text-gray-400 font-bold flex flex-col items-center"><i class="fa-solid fa-file-circle-check text-4xl mb-3 opacity-50"></i>No standardized L2 issues identified in the current selection.</div>`;
+            }
+            
+            document.getElementById('statement-content').innerHTML = html;
+        }
+
+        function copyStatement() {
+            const textToCopy = document.getElementById('statement-content').innerText;
+            
+            // สร้าง textarea จำลองเพื่อทำการก๊อปปี้ (วิธีนี้ทำงานได้ 100% ในทุกสภาพแวดล้อมรวมถึง iFrame)
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            
+            // ทำให้ textarea มองไม่เห็นบนหน้าจอ
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "-9999px";
+            document.body.appendChild(textArea);
+            
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Unable to copy', err);
+            }
+            
+            document.body.removeChild(textArea);
+            
+            // แสดง Visual Feedback ที่ปุ่มแทนการใช้ Alert
+            const btn = document.querySelector('button[onclick="copyStatement()"]');
+            if (btn) {
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Copied!';
+                btn.classList.add('bg-green-50', 'text-green-700', 'border-green-300');
+                btn.classList.remove('bg-gray-100', 'text-gray-700');
+                
+                setTimeout(() => { 
+                    btn.innerHTML = originalHTML; 
+                    btn.classList.remove('bg-green-50', 'text-green-700', 'border-green-300');
+                    btn.classList.add('bg-gray-100', 'text-gray-700');
+                }, 2000); // คืนค่าปุ่มกลับมาหลังผ่านไป 2 วินาที
+            }
+        }
+
+        function initColumnSelector() {
+            if(!processedData.length) return;
+            const keys = Object.keys(processedData[0]);
+            const ignored = ['pDate', 'cleanComp', 'cleanOp', 'ataCode', 'l2SummariesArr', 'l2SummaryText', 'extractedConcepts'];
+            allAvailableCols = [...new Set(keys)].filter(k => !ignored.includes(k));
+            visibleColumns = new Set(allAvailableCols);
+            const container = document.getElementById('col-checkboxes');
+            container.innerHTML = '';
+            allAvailableCols.forEach(col => {
+                container.innerHTML += `<div class="flex items-center space-x-2"><input type="checkbox" id="col-${col}" value="${col}" checked class="rounded text-blue-600 focus:ring-blue-500 h-4 w-4" onchange="toggleColumn(this.value, this.checked)"><label for="col-${col}" class="text-xs text-gray-700 truncate cursor-pointer select-none">${escapeHTML(col)}</label></div>`;
+            });
+        }
+
+        function toggleColumn(colName, isChecked) {
+            if (isChecked) visibleColumns.add(colName); else visibleColumns.delete(colName);
+            renderRawTable(currentFilteredData);
+        }
+
+        function toggleColMenu() { document.getElementById('col-menu').classList.toggle('hidden'); }
+
+        function highlightRow(row) {
+            if(row.classList.contains('selected-row')) { row.classList.remove('selected-row'); } else { row.classList.add('selected-row'); }
+        }
+
+        function renderRawTable(data, highlightTerm = null) {
+            currentRenderData = data;
+            if(!data || data.length === 0) { 
+                document.getElementById('raw-data-table').innerHTML = ''; 
+                document.getElementById('raw-count').innerText = '0 rows';
+                document.getElementById('page-info').innerText = '0 of 0';
+                return; 
+            }
+            
+            const totalRows = data.length;
+            const totalPages = Math.ceil(totalRows / rowsPerPage);
+            if (currentPage > totalPages) currentPage = 1;
+            
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = Math.min(startIndex + rowsPerPage, totalRows);
+            const displayData = data.slice(startIndex, endIndex);
+
+            let headers = allAvailableCols.filter(col => visibleColumns.has(col));
+            if (headers.length === 0) {
+                visibleColumns = new Set(allAvailableCols);
+                headers = allAvailableCols;
+                document.querySelectorAll('#col-checkboxes input').forEach(cb => cb.checked = true);
+            }
+            
+            let thead = `<thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 shadow-sm z-10"><tr>`;
+            headers.forEach(h => {
+                let wClass = "";
+                if (h === 'Complaint Text') wClass = "w-1/3 min-w-[300px]";
+                else if (h === 'Activity Text') wClass = "w-1/4 min-w-[250px]";
+                else if (h === 'Activity Code Text') wClass = "w-1/6 min-w-[200px]";
+                else if (h === 'Component Text') wClass = "w-48 min-w-[150px] max-w-[200px]"; 
+                
+                thead += `<th class="px-4 py-3 border-b bg-gray-100 font-bold tracking-wider ${wClass}">${escapeHTML(h)}</th>`;
+            });
+            thead += `</tr></thead><tbody>`;
+            
+            let tbody = "";
+            displayData.forEach((row) => {
+                tbody += `<tr class="bg-white border-b hover:bg-blue-50 transition-colors cursor-pointer" onclick="highlightRow(this)">`;
+                headers.forEach(h => {
+                    let val = row[h];
+                    if (val instanceof Date) val = formatDate(val);
+                    let displayVal = val ? String(val) : "";
+                    
+                    displayVal = escapeHTML(displayVal);
+                    
+                    if (highlightTerm && displayVal) {
+                        const safeTerm = escapeHTML(highlightTerm);
+                        const regex = new RegExp(`(${safeTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                        displayVal = displayVal.replace(regex, '<span class="highlight-text">$1</span>');
+                    }
+                    
+                    const wrapCols = ['Activity Code Text', 'Activity Text', 'Activity Text (Detail)', 'Operation Text', 'Component Text', 'Complaint Text', 'Technician Info'];
+                    let cellClasses = "px-4 py-2 border-b border-gray-100 align-top";
+                    if (wrapCols.includes(h)) {
+                        cellClasses += " break-words whitespace-normal"; 
+                        if (h === 'Component Text') {
+                            cellClasses += " max-w-[200px]"; 
+                        }
+                    } else {
+                        cellClasses += " whitespace-nowrap";
+                    }
+                    
+                    tbody += `<td class="${cellClasses}">${displayVal}</td>`;
+                });
+                tbody += `</tr>`;
+            });
+            
+            document.getElementById('raw-data-table').innerHTML = thead + tbody + `</tbody>`;
+            document.getElementById('raw-count').innerText = `${totalRows} rows total`;
+            document.getElementById('page-info').innerText = `Page ${currentPage} of ${totalPages} (Rows ${startIndex+1}-${endIndex})`;
+            document.getElementById('btn-prev').disabled = currentPage === 1;
+            document.getElementById('btn-next').disabled = currentPage === totalPages;
+        }
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                const searchTerm = document.getElementById('table-search').value.toLowerCase();
+                renderRawTable(currentRenderData, searchTerm || null);
+            }
+        }
+        function nextPage() {
+            const totalPages = Math.ceil(currentRenderData.length / rowsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                const searchTerm = document.getElementById('table-search').value.toLowerCase();
+                renderRawTable(currentRenderData, searchTerm || null);
+            }
+        }
+        function toggleFullscreen(cardId, chartId) {
+            const card = document.getElementById(cardId);
+            const chart = document.getElementById(chartId);
+            
+            if (!card || !chart) return; 
+            
+            const icon = card.querySelector(`[onclick*="toggleFullscreen('${cardId}'"] i`);
+
+            card.classList.toggle('card-fullscreen');
+            chart.classList.toggle('chart-fullscreen');
+
+            if (card.classList.contains('card-fullscreen')) {
+                if(icon) {
+                    icon.classList.remove('fa-expand');
+                    icon.classList.add('fa-compress'); 
+                }
+            } else {
+                 if(icon) {
+                    icon.classList.remove('fa-compress');
+                    icon.classList.add('fa-expand'); 
+                }
+            }
+            setTimeout(() => {
+                if (typeof Plotly !== 'undefined' && chart.classList.contains('js-plotly-plot')) {
+                    Plotly.Plots.resize(chart);
+                }
+            }, 50);
+        }
+        function switchTab(id, fromHistory = false) {
+            if (!fromHistory) {
+                if (!history.state || history.state.view !== id) {
+                    history.pushState({ view: id, isDrilldown: false }, '', '#' + id);
+                }
+            }
+            if (id === 'rawdata' && history.state && !history.state.isDrilldown) {
+                if (currentFilteredData.length > 0 && currentRenderData !== currentFilteredData) {
+                    currentPage = 1;
+                    renderRawTable(currentFilteredData);
+                }
+            }
+            document.querySelectorAll('.tab-content').forEach(d => d.classList.add('hidden'));
+            document.getElementById(`tab-${id}`).classList.remove('hidden');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById(`nav-btn-${id}`);
+            if (btn) btn.classList.add('active');
+            document.querySelectorAll('tr.selected-row').forEach(row => row.classList.remove('selected-row'));
+            
+            setTimeout(() => {
+                const charts = ['trend-chart', 'cat-chart', 'status-chart', 'fleet-chart', 'pareto-chart', 'sunburst-chart', 'fc-chart', 'ngram-chart', 'matrix-chart', 'taxonomy-bar'];
+                charts.forEach(cId => {
+                     const el = document.getElementById(cId);
+                     if(el && el.offsetParent !== null) { Plotly.Plots.resize(el); }
+                });
+                if(id === 'phrase') {
+                    if (phraseDataStore && phraseDataStore.length > 0) {
+                         setTimeout(() => {
+                             renderEChartsAdvanced(phraseDataStore);
+                         }, 200); 
+                    }
+                    const echartsContainers = ['echart-sankey'];
+                    echartsContainers.forEach(eid => {
+                        const instance = echarts.getInstanceByDom(document.getElementById(eid));
+                        if(instance) instance.resize();
+                    });
+                }
+            }, 50);
+        }
+        window.addEventListener('resize', function() {
+            const charts = ['trend-chart', 'cat-chart', 'status-chart', 'fleet-chart', 'pareto-chart', 'sunburst-chart', 'fc-chart', 'ngram-chart', 'matrix-chart', 'taxonomy-bar'];
+            charts.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) Plotly.Plots.resize(el);
+            });
+            const echartsContainers = ['echart-sankey'];
+            echartsContainers.forEach(eid => {
+                const instance = echarts.getInstanceByDom(document.getElementById(eid));
+                if(instance) instance.resize();
+            });
+        });
+        window.addEventListener('popstate', function(event) {
+            if (event.state && event.state.view) {
+                switchTab(event.state.view, true);
+                if (!event.state.isDrilldown && currentFilteredData.length > 0) {
+                     renderRawTable(currentFilteredData);
+                }
+            } else {
+                switchTab('overview', true);
+            }
+        });
+    </script>
+</body>
+</html>
